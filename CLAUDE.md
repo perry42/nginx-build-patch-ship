@@ -48,5 +48,8 @@ Rule: before proposing or deciding anything, check it against this list. Ask the
 ## Drop-in criteria
 Compare with `docker inspect nginx:1.25-bookworm` and the official docker-nginx Dockerfile: user (UID 101 `nginx`), workdir, port 80, Entrypoint and Cmd, Env, STOPSIGNAL, filesystem layout, logs symlinked to stdout/stderr.
 
+## Base image rule
+Our image must sit on the same Debian as the baseline: Debian 12.5, same base-files, libc6 and library versions. Build and runtime base is `debian:bookworm-20240513-slim`, with apt pointed at `snapshot.debian.org` dated 2024-05-13 so old versions (for example libssl3 3.0.11-1~deb12u2) are installable. Each fix (bump or backport) is then a real change against that same base. After every build, diff the package list (`dpkg -l`) of the baseline against ours and explain every difference.
+
 ## Test rules
 Boot both images, send identical requests (root, custom config, large body, malformed), assert status + headers + body, exit non-zero on mismatch. Happy path must be identical; any intended difference on exploit or malformed requests must be documented.
