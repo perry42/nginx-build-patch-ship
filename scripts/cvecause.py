@@ -1,7 +1,7 @@
 import json,collections
 def pk(p):
     d=json.load(open(p,encoding='utf-8')); return {(v['VulnerabilityID'],v['PkgName']) for r in d['Results'] for v in r.get('Vulnerabilities') or []}
-ours={l.split()[0].split(':')[0] for l in open('../pkgs-ours.txt') if l.strip()}
+ours={q['Name'] for r in json.load(open('fixed-trivy.json',encoding='utf-8'))['Results'] for q in r.get('Packages',[])}
 b=pk('base-trivy.json'); x=pk('fixed-trivy.json')
 c=collections.Counter()
 for k in b-x:
