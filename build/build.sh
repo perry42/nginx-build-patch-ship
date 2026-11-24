@@ -72,6 +72,27 @@ mkdir -p "$PKGROOT/var/cache/nginx" "$PKGROOT/var/log/nginx" \
          "$PKGROOT/usr/lib/nginx/modules" "$PKGROOT/DEBIAN"
 # /var/run is a symlink to /run on bookworm; do not ship it as a directory.
 rmdir "$PKGROOT/var/run" 2>/dev/null || true
+# Official layout: replace upstream's "make install" config extras with the
+# config files and welcome page shipped by the nginx:1.25-bookworm package
+# (build/pkgfiles, md5-identical to its recorded conffiles), plus the modules link.
+rm -rf "$PKGROOT/etc/nginx/html" "$PKGROOT"/etc/nginx/*.default \
+       "$PKGROOT/etc/nginx/fastcgi.conf" "$PKGROOT/etc/nginx/koi-utf" \
+       "$PKGROOT/etc/nginx/koi-win" "$PKGROOT/etc/nginx/win-utf"
+cp -a "$HERE/pkgfiles/." "$PKGROOT/"
+# Files copied from a Windows checkout can arrive executable; the baseline is 0644.
+find "$PKGROOT/etc/nginx" "$PKGROOT/usr/share/nginx" -type f -exec chmod 0644 {} +
+ln -s /usr/lib/nginx/modules "$PKGROOT/etc/nginx/modules"
+# Register the config files as dpkg conffiles, like the official package does.
+# docker-entrypoint.d/10-listen-on-ipv6-by-default.sh compares default.conf with
+# the checksum dpkg recorded here; without this the IPv6 listen is never enabled.
+cat > "$PKGROOT/DEBIAN/conffiles" <<EOF
+/etc/nginx/conf.d/default.conf
+/etc/nginx/fastcgi_params
+/etc/nginx/mime.types
+/etc/nginx/nginx.conf
+/etc/nginx/scgi_params
+/etc/nginx/uwsgi_params
+EOF
 # Drop debug symbols (the baseline binary is stripped too; keeps size honest).
 strip --strip-unneeded "$PKGROOT/usr/sbin/nginx"
 
