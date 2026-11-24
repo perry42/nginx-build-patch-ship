@@ -70,6 +70,10 @@ echo "==> stage into $PKGROOT"
 make install DESTDIR="$PKGROOT" > "$WORK/install.log"
 mkdir -p "$PKGROOT/var/cache/nginx" "$PKGROOT/var/log/nginx" \
          "$PKGROOT/usr/lib/nginx/modules" "$PKGROOT/DEBIAN"
+# /var/run is a symlink to /run on bookworm; do not ship it as a directory.
+rmdir "$PKGROOT/var/run" 2>/dev/null || true
+# Drop debug symbols (the baseline binary is stripped too; keeps size honest).
+strip --strip-unneeded "$PKGROOT/usr/sbin/nginx"
 
 echo "==> dependencies from the real binary (dpkg-shlibdeps)"
 mkdir -p "$WORK/debian" && : > "$WORK/debian/control"
