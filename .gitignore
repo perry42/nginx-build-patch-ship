@@ -66,3 +66,4 @@ credentials*.json
 Thumbs.db
 desktop.ini
 scans/*.err
+NEXT_SESSION.md
