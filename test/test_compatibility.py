@@ -10,13 +10,24 @@ Env: ORIGINAL_IMAGE (default nginx:1.25-bookworm), PATCHED_IMAGE (required,
 tests skip without it). Run: pytest test/ -v
 
 Covered: rewrite last/break/redirect/permanent, captures, literal '?',
-trailing '?', malformed %-escape (400), CVE-2026-42945 and CVE-2026-9256.
-Not covered yet: root page with stock config, mounted conf.d, large request
-bodies / client_max_body_size, malformed verbs/headers, TLS.
+trailing '?', malformed %-escape (400), CVE-2026-42945 and CVE-2026-9256;
+large bodies (5 MB accepted, over client_max_body_size -> 413, per-location
+limit); raw-socket malformed requests (bad method, long request line, missing
+Host, invalid header, bare LF, garbage) compared by status line + headers;
+custom config (server_tokens off, add_header, return/location mix, named
+vhost); TLS (listen 443 ssl, self-signed cert generated at test time; same
+response on both, negotiated protocol/cipher compared and printed).
+Not covered: stock default.conf / root page and mounted conf.d (the WIP image
+has no default config; the final image should add a test), HTTP/2, proxying,
+gzip, reload/signal handling, logging.
+
+Intended differences on malformed requests: none; both must match exactly.
 
 Header comparison ignores only `Date` (changes every second); everything else,
 including Server and Content-Length, must match.
 """
+import socket
+import ssl
 import time
 
 import pytest
@@ -131,3 +142,4 @@ def test_liveness_after_crash_request(crash_pair):
             except requests.RequestException:
                 time.sleep(0.3)
         assert ok is not None and ok.status_code == 200 and ok.text == "alive"
+
