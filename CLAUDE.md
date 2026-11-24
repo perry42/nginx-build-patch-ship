@@ -11,6 +11,11 @@ Take-home (PDF in repo root). Ship a drop-in replacement for `nginx:1.25-bookwor
 - Chat in English. Deliverables (README, code, commits) in English. Any personal study notes are not ground truth.
 - The baseline is exactly `nginx:1.25-bookworm` as named in the assignment; verify and pin its digest before relying on it.
 
+## Git workflow
+- Never commit directly to `main`. Work on a branch per milestone (`feat/...`, `fix/...`, `test/...`, `docs/...`), commit as needed with Conventional Commits.
+- Merge into `main` (no-fast-forward) only after the user approves. Ask first, every time.
+- Never push without asking first.
+
 ## Model policy
 Sonnet at most for all agents and implementation. Fable only for planning, only when the candidate asks, per session. Never change agent models on your own.
 
