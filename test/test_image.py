@@ -17,6 +17,7 @@ ports, entrypoint, cmd, stop signal, layout, modes, owners) must be identical.
 """
 import json
 import os
+import re
 import subprocess
 import time
 import uuid
@@ -34,7 +35,7 @@ ENTRYPOINT_PATHS = ["/etc/nginx", "/usr/share/nginx/html", "/docker-entrypoint.d
 class Real:
     """Container started with the image's own config and entrypoint."""
 
-    def __init__(self, image, tag, files=(), env=(), extra_ports=()):
+    def __init__(self, image, tag, files=(), env=(), extra_ports=(), cmd=()):
         self.image = image
         self.name = f"echo-test-{tag}-{uuid.uuid4().hex[:8]}"
         self.port = _free_port()
@@ -45,7 +46,7 @@ class Real:
             args += ["-p", f"{self.ports[cp]}:{cp}"]
         for e in env:
             args += ["-e", e]
-        _docker("create", "--name", self.name, *args, image)
+        _docker("create", "--name", self.name, *args, image, *cmd)
         try:
             for src, dst in files:
                 _docker("cp", src, f"{self.name}:{dst}")
@@ -251,3 +252,110 @@ def test_graceful_stop(_need_patched, which):
         assert took < 10, f"stop took {took:.1f}s (SIGKILL fallback?)"
     finally:
         s.stop()
+
+
+# 8. extra package files (nginx-debug, init, logrotate, systemd) -------------
+EXTRA_FILES = ["/usr/sbin/nginx-debug", "/etc/default/nginx", "/etc/default/nginx-debug",
+               "/etc/init.d/nginx", "/etc/init.d/nginx-debug", "/etc/logrotate.d/nginx",
+               "/lib/systemd/system/nginx.service", "/lib/systemd/system/nginx-debug.service"]
+
+
+def test_extra_files_mode_owner_md5(_need_patched):
+    script = "for f in " + " ".join(EXTRA_FILES) + r"""; do
+  stat -L -c '%n|%a|%u|%g' "$f" || echo "$f|MISSING"
+  case "$f" in */sbin/*) ;; *) md5sum "$f" 2>&1;; esac; done"""
+    # The nginx-debug binary is compiled from source, so its md5 cannot match the
+    # baseline's binary; mode/uid/gid are compared, content is covered by -V and serving tests.
+    a, b = _sh(ORIGINAL, script), _sh(PATCHED, script)
+    assert "MISSING" not in a, a
+    assert a == b, "extra files differ:\n" + "\n".join(sorted(set(a.splitlines()) ^ set(b.splitlines())))
+
+
+def test_dpkg_conffiles_identical(_need_patched):
+    script = "dpkg-query -W -f='${Conffiles}' nginx | sed 's/^ //' | sort"
+    a, b = _sh(ORIGINAL, script), _sh(PATCHED, script)
+    assert len(a.splitlines()) >= 5, a
+    for f in EXTRA_FILES[1:6]:
+        assert f in a, f"{f} not a conffile in original"
+    assert a == b, "conffiles differ:\n" + "\n".join(sorted(set(a.splitlines()) ^ set(b.splitlines())))
+
+
+def _configure_args(image, binary):
+    out = _docker("run", "--rm", "--entrypoint", binary, image, "-V").stderr
+    m = re.search(r"configure arguments: (.*)", out)
+    assert m, out
+    return out, m.group(1)
+
+
+def test_nginx_debug_version_and_configure_args(_need_patched):
+    for img in (ORIGINAL, PATCHED):
+        out_n, args_n = _configure_args(img, "nginx")
+        out_d, args_d = _configure_args(img, "nginx-debug")
+        assert "--with-debug" in out_d, (img, out_d)
+        assert out_d.splitlines()[0] == out_n.splitlines()[0], img  # version line
+        strip = lambda x: re.sub(r"\s*-ffile-prefix-map=\S+", "", x)
+        # nginx-debug = nginx args + --with-debug (same as upstream packaging)
+        a = strip(args_d).replace(" --with-debug", "")
+        assert a == strip(args_n), f"{img}\nnginx: {strip(args_n)}\ndebug-stripped: {a}"
+        assert "--with-debug" not in args_n, img
+
+
+def test_nginx_debug_configure_args_parity(_need_patched):
+    strip = lambda x: re.sub(r"\s*-ffile-prefix-map=\S+", "", x)
+    for binary in ("nginx", "nginx-debug"):
+        a, b = (strip(_configure_args(i, binary)[1]) for i in (ORIGINAL, PATCHED))
+        assert a == b, f"{binary}\norig:    {a}\npatched: {b}"
+
+
+@pytest.fixture(scope="module")
+def debug_pair(_need_patched):
+    servers = []
+    try:
+        for role, img in (("orig", ORIGINAL), ("patched", PATCHED)):
+            servers.append(Real(img, f"dbg-{role}", cmd=("nginx-debug", "-g", "daemon off;")))
+        yield tuple(servers)
+    finally:
+        for s in servers:
+            s.stop()
+
+
+def test_nginx_debug_serves_root(debug_pair):
+    a, b = (_norm(requests.get(s.url("/"), timeout=5)) for s in debug_pair)
+    assert a == b, f"orig {a}\npatched {b}"
+    assert a[0] == 200 and b"Welcome to nginx!" in a[2]
+    for s in debug_pair:
+        ps = _docker("exec", s.name, "sh", "-c", "cat /proc/1/cmdline | tr '\\0' ' '").stdout
+        assert "nginx-debug" in ps, ps
+
+
+@pytest.mark.parametrize("binary", ["nginx", "nginx-debug"])
+def test_config_test_succeeds(_need_patched, binary):
+    for img in (ORIGINAL, PATCHED):
+        r = _docker("run", "--rm", "--entrypoint", binary, img, "-t", check=False)
+        assert r.returncode == 0, (img, binary, r.stderr)
+        assert "test is successful" in r.stderr, (img, r.stderr)
+
+
+PKG_SCRIPT = r"""dpkg -L nginx | grep -v -e '^/usr/share/doc' -e '^/usr/share/man' | sort -u |
+while read -r f; do
+  if [ -L "$f" ] || [ -f "$f" ]; then stat -c '%n|%F|%a|%u|%g|%N' "$f"; fi
+done | sort"""
+
+
+def test_package_file_set_identical(_need_patched):
+    a, b = _sh(ORIGINAL, PKG_SCRIPT), _sh(PATCHED, PKG_SCRIPT)
+    names = lambda x: {ln.split("|")[0] for ln in x.splitlines()}
+    assert len(a.splitlines()) >= 15, a
+    assert names(a) == names(b), "package file set differs:\n" + "\n".join(
+        sorted(names(a) ^ names(b)))
+    assert a == b, "package file type/mode/owner/link differs:\n" + "\n".join(
+        sorted(set(a.splitlines()) ^ set(b.splitlines())))
+
+
+def test_no_extra_files_in_ours(_need_patched):
+    script = r"find /etc /usr/sbin /usr/lib/nginx /lib/systemd \( -type f -o -type l \) | sort"
+    a, b = _sh(ORIGINAL, script), _sh(PATCHED, script)
+    extra = sorted(set(b.splitlines()) - set(a.splitlines()))
+    missing = sorted(set(a.splitlines()) - set(b.splitlines()))
+    print("files only in ours:", extra, "\nfiles only in baseline:", missing)
+    assert not extra, f"ours has files the baseline lacks: {extra}"

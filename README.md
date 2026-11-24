@@ -1,6 +1,6 @@
 # Echo: Build It, Patch It, Ship It
 
-A drop-in replacement for `nginx:1.25-bookworm`, built from the upstream nginx 1.25.5 source on a pinned `debian:bookworm-slim`, with three real security changes covering five CVEs: one library bump (three CVEs) and two upstream patches backported onto the version we ship (one CVE each).
+A drop-in replacement for `nginx:1.25-bookworm`, built from the upstream nginx 1.25.5 source on a pinned `debian:bookworm-slim`, with three real security changes covering five CVEs: one library bump (48 unique CVEs cleared on libssl3 and openssl; I highlight the three that matter most) and two upstream patches backported onto the version we ship (one CVE each).
 
 I wrote this as I went, so the decisions come with the reasons I made them, including the places where I changed my mind.
 
@@ -39,9 +39,9 @@ Run it: `docker run --rm -p 8080:80 echo/nginx:1.25-patched`.
 | Image | Size |
 |---|---|
 | `nginx:1.25-bookworm` | 276 MB |
-| `echo/nginx:1.25-patched` | 176 MB |
+| `echo/nginx:1.25-patched` | 179 MB |
 
-This is not an achievement. Most of the 100 MB is components I did not include (see "Intended differences"), and the brief is clear that removal does not count as a fix. I list it because it was asked for, and because it is a side effect I want to be honest about.
+This is not an achievement. Most of the 97 MB is components I did not include (see "Intended differences"), and the brief is clear that removal does not count as a fix. I list it because it was asked for, and because it is a side effect I want to be honest about.
 
 ## The base: why it is pinned
 
@@ -127,6 +127,8 @@ The suite can fail on purpose. Run it with both sides set to the original image 
 
 ## Intended differences
 
+The brief says to match "the upstream image's filesystem layout, user, working directory, ports, and entrypoint exactly". User, working directory, port 80, entrypoint, command and stop signal are identical (checked with `docker inspect`). For the filesystem, my image contains nothing the baseline lacks, and everything the `nginx` package itself ships is present with the same mode, owner and checksum, including `nginx-debug`, `/etc/default`, the init scripts, logrotate and systemd units. What is missing is whole packages: curl and its dependencies, and the four dynamic modules. I read "layout" as where nginx's own files live, and I consider extra packages a separate question; a stricter reader could disagree, and the entries below are the cost of that reading.
+
 Everything below is a deliberate difference from the official image.
 
 | Difference | Why |
@@ -135,7 +137,6 @@ Everything below is a deliberate difference from the official image.
 | No `NJS_*` environment variables, no `maintainer` label | The label names the nginx Docker maintainers; I am not them. |
 | No curl, libcurl4, or their dependency chain | See below. |
 | No dynamic modules: geoip, image-filter, njs, xslt | See below. |
-| No nginx-debug binary, init, systemd or logrotate files | Not used in a container. |
 | 93 packages against the baseline's 149 | 56 packages are missing, all from the items above (curl chain, module libraries). No package was added. Three versions differ: libssl3 and openssl (the bump) and nginx itself. |
 
 ### Why curl is not in the image
