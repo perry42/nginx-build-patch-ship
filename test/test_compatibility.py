@@ -17,9 +17,14 @@ Host, invalid header, bare LF, garbage) compared by status line + headers;
 custom config (server_tokens off, add_header, return/location mix, named
 vhost); TLS (listen 443 ssl, self-signed cert generated at test time; same
 response on both, negotiated protocol/cipher compared and printed).
-Not covered: stock default.conf / root page and mounted conf.d (the WIP image
-has no default config; the final image should add a test), HTTP/2, proxying,
-gzip, reload/signal handling, logging.
+test_image.py (real image, stock default config and entrypoint): `/`, `/missing`,
+`/50x.html`; entrypoint startup log lines; mounted conf.d; envsubst templates;
+docker inspect Config; file layout/mode/owner/content; log symlinks, `id nginx`;
+graceful `docker stop` (exit 0, < 10 s). Its documented diffs (PKG_RELEASE,
+missing NJS_* env, missing maintainer label, ignored ETag/Last-Modified on
+static files) are listed in that module's docstring.
+Not covered: HTTP/2, proxying, gzip, reload/signal handling beyond SIGQUIT stop,
+runtime access/error log content.
 
 Intended differences on malformed requests: none; both must match exactly.
 
