@@ -11,11 +11,21 @@ Take-home (PDF in repo root). Ship a drop-in replacement for `nginx:1.25-bookwor
 - Chat in English. Deliverables (README, code, commits) in English. Any personal study notes are not ground truth.
 - The baseline is exactly `nginx:1.25-bookworm` as named in the assignment; verify and pin its digest before relying on it.
 
+## Git workflow
+- Never commit directly to `main`. Work on a branch per milestone (`feat/...`, `fix/...`, `test/...`, `docs/...`), commit as needed with Conventional Commits.
+- Merge into `main` (no-fast-forward) only after the user approves. Ask first, every time.
+- Never push without asking first.
+
 ## Model policy
 Sonnet at most for all agents and implementation. Fable only for planning, only when the candidate asks, per session. Never change agent models on your own.
 
 ## Agents (`.claude/agents/`)
 `product-manager` (scope, plan, DR, acceptance), `packaging-expert` (source, patches, .deb, Containerfile, Makefile), `security-reviewer` (scans, triage, VEX, residual risk), `test-agent` (pytest + requests parity suite).
+
+### Agent flow
+`product-manager` (scope, acceptance criteria) -> `packaging-expert` (builds) -> `test-agent` and `security-reviewer` in parallel (verify and review) -> back to `packaging-expert` for fixes -> repeat until both pass.
+- Handoffs are explicit: each agent receives the previous one's output and acceptance criteria.
+- The builder gives `test-agent` a list of the tests and checks it already ran, so tests are not duplicated. `test-agent` reads existing `test/` first and only adds what is missing.
 
 ## Deliverable layout
 `build/` (Dockerfile or build.sh, `patches/CVE-*.patch`), `Containerfile`, `test/` (`test_compatibility.py`, `requirements.txt`), `Makefile`, `README.md` (build steps, image size old vs new, per-CVE table with evidence links, residual risk, surprises and AI usage), `vex.json`, `baseline-trivy.txt`, `baseline-grype.txt`.
