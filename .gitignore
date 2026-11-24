@@ -1,0 +1,67 @@
+# --- Private working material (not for the reviewer) ---
+# Assignment brief and personal interview prep
+*.pdf
+study_guide_and_dr.md
+# Internal plan and notes. Agents (.claude/agents) and CLAUDE.md ARE tracked on purpose:
+# they document how AI was used, which the assignment asks for.
+.claude/*
+!.claude/agents/
+.claude/settings.local.json
+ROADMAP.md
+memory/
+scratch/
+notes/
+*.private.md
+
+# --- Build artifacts ---
+dist/
+out/
+build/out/
+*.deb
+*.tar
+*.tar.gz
+*.tgz
+*.rpm
+*.o
+*.so
+
+# --- Scan intermediates (final baseline-*.txt and vex.json ARE tracked) ---
+scans/tmp/
+scans/*.json
+*.sarif
+.trivycache/
+.grype-cache/
+
+# --- Python ---
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.venv/
+venv/
+.mypy_cache/
+.ruff_cache/
+htmlcov/
+.coverage
+
+# --- Secrets and environment ---
+.env
+.env.*
+*.pem
+*.key
+*.p12
+credentials*.json
+*.secret
+
+# --- Logs and temp ---
+*.log
+*.tmp
+*.bak
+*.swp
+*~
+
+# --- Editor / OS ---
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+desktop.ini
