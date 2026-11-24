@@ -10,6 +10,7 @@ PATCHED    ?= echo/nginx:1.25-patched
 TRIVY_TAG  ?= 0.76.2
 GRYPE_TAG  ?= v0.122.1
 PY         ?= python
+BUILD_FLAGS ?=
 SCANDIR    ?= scans/rescan
 
 # Docker Desktop on Windows (Git Bash) rewrites /paths in arguments; turn that off.
@@ -34,11 +35,11 @@ all: image deps test scan diff sizes
 
 # The .deb alone, exported to dist/ (the image build does this internally as well).
 deb:
-	docker build -f build/Dockerfile --output type=local,dest=dist build
+	docker build $(BUILD_FLAGS) -f build/Dockerfile --output type=local,dest=dist build
 	@ls -l dist
 
 image:
-	docker build -f Containerfile -t $(PATCHED) .
+	docker build $(BUILD_FLAGS) -f Containerfile -t $(PATCHED) .
 
 deps:
 	$(PY) -m pip install -r test/requirements.txt
