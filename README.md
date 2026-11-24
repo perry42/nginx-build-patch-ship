@@ -83,6 +83,26 @@ I made two mistakes while proving them, and both taught me something:
 
 Why two nginx backports and not a library one: the brief asks for a CVE fixed upstream only in later versions, ported onto what we ship. These are in the module that handles every `rewrite`, I can show both failing and fixed with plain HTTP requests, and the patches are small enough to review line by line.
 
+## Bump or backport: how I decided
+
+For every CVE I asked the same two questions, in this order.
+
+1. **Does Debian already ship a fixed version of the package I have?** Then it is a **bump**: I install that version. This is what happened with libssl3 (`3.0.22-1~deb12u2` exists, so I use it).
+2. **If not, does upstream have a small fix commit?** Then it is a **backport**: I take only that fix and apply it to the version I ship. This is what happened with the two nginx rewrite bugs, and it is the plan for zlib CVE-2026-27171 (Debian has no fixed bookworm version, upstream has a two-line fix).
+
+The tempting third option is to swap in a much newer upstream release (nginx 1.30, or zlib 1.3.x). I did not, because that is a big change: it carries every other change made since, the package stops being Debian's package, and the compatibility risk is mine. The brief asks for a drop-in replacement, not a re-imagining, and for a patch applied to the version we ship. Taking only the lines that fix the bug keeps everything else byte-for-byte the same as the baseline.
+
+The two techniques also look different to a scanner, which is why the brief wants both:
+
+| | Version string | What the scanner does | How I show the fix |
+|---|---|---|---|
+| Bump | changes (libssl3 `3.0.11` to `3.0.22`) | stops flagging by itself | the row disappears in the rescan |
+| Backport | stays the same | keeps flagging, if it flagged at all | tests that fail before and pass after, and a VEX statement |
+
+I deliberately do not raise the version number of a backported package to make a scanner happy. That would be a false claim. The honest way to say "this CVE no longer applies to my build" is VEX.
+
+One honest limit on the zlib backport: nginx only uses zlib's `deflate` and `inflate` and never calls the vulnerable `crc32_combine` functions, so this fix is not reachable through nginx. It is there to show the backport-plus-VEX path with a CVE the scanners really list, not because it makes nginx safer.
+
 ## Scan results
 
 Trivy 0.76.2 and Grype v0.122.1, both images scanned back to back, so a database update cannot look like a difference between them.
