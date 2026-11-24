@@ -22,6 +22,11 @@ Sonnet at most for all agents and implementation. Fable only for planning, only 
 ## Agents (`.claude/agents/`)
 `product-manager` (scope, plan, DR, acceptance), `packaging-expert` (source, patches, .deb, Containerfile, Makefile), `security-reviewer` (scans, triage, VEX, residual risk), `test-agent` (pytest + requests parity suite).
 
+### Agent flow
+`product-manager` (scope, acceptance criteria) -> `packaging-expert` (builds) -> `test-agent` and `security-reviewer` in parallel (verify and review) -> back to `packaging-expert` for fixes -> repeat until both pass.
+- Handoffs are explicit: each agent receives the previous one's output and acceptance criteria.
+- The builder gives `test-agent` a list of the tests and checks it already ran, so tests are not duplicated. `test-agent` reads existing `test/` first and only adds what is missing.
+
 ## Deliverable layout
 `build/` (Dockerfile or build.sh, `patches/CVE-*.patch`), `Containerfile`, `test/` (`test_compatibility.py`, `requirements.txt`), `Makefile`, `README.md` (build steps, image size old vs new, per-CVE table with evidence links, residual risk, surprises and AI usage), `vex.json`, `baseline-trivy.txt`, `baseline-grype.txt`.
 
