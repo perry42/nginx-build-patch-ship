@@ -27,11 +27,29 @@ Sonnet at most for all agents and implementation. Fable only for planning, only 
 - Handoffs are explicit: each agent receives the previous one's output and acceptance criteria.
 - The builder gives `test-agent` a list of the tests and checks it already ran, so tests are not duplicated. `test-agent` reads existing `test/` first and only adds what is missing.
 
+## Brief checklist (from the assignment PDF; check every decision against this FIRST)
+Rule: before proposing or deciding anything, check it against this list. Ask the user only about what the brief does not settle.
+1. **Goal:** drop-in replacement for `nginx:1.25-bookworm`, >= 2 CVEs eliminated, using different techniques. Removal does not count.
+2. **Bump:** >= 1 CVE fixed by bumping a dependency version (system library or upstream source).
+3. **Backport:** >= 1 CVE fixed by backporting a patch from a newer upstream commit onto the version we ship.
+4. **Baseline:** pull, scan with Trivy AND Grype, save `baseline-trivy.txt` / `baseline-grype.txt`.
+5. **Triage:** for each CVE in the reports: binary or library, upstream fix and version, bump/backport/remove. Pick CVEs and write down why.
+6. **Build:** our own script (Debian tooling allowed, own script preferred); fetch upstream source, apply patches, build the `.deb`; from clean `debian:bookworm-slim`, no pre-baked binaries; one command (Makefile or single script).
+7. **Image:** install the `.deb` into a minimal Debian base; match layout, user, workdir, ports, entrypoint exactly.
+8. **Rescan (bonus):** scan the fixed image, diff vs baseline; VEX for a backport-patched CVE; re-run with `--vex` to show the CVE disappear.
+9. **Test:** Go or Python; boot original and ours as separate containers; same requests (root, custom config, large body, malformed...); assert status + headers + body; exit non-zero on mismatch; document what "working correctly" means and what is covered.
+10. **Repo:** `build/` (script/Dockerfile + `patches/` named after each CVE), `Containerfile`, `test/` + `make test`, `README.md`.
+11. **README:** build instructions; image size original vs new; per-CVE table (ID, severity, bump/backport/remove, evidence link); residual risk (what remains, why, next); surprises and what we would do differently; which AI tools were used and where they helped or hurt.
+12. **Reminders:** a couple of CVEs end-to-end beats many; not production-grade; if stuck, write what was tried and move on.
+
 ## Deliverable layout
 `build/` (Dockerfile or build.sh, `patches/CVE-*.patch`), `Containerfile`, `test/` (`test_compatibility.py`, `requirements.txt`), `Makefile`, `README.md` (build steps, image size old vs new, per-CVE table with evidence links, residual risk, surprises and AI usage), `vex.json`, `baseline-trivy.txt`, `baseline-grype.txt`.
 
 ## Drop-in criteria
 Compare with `docker inspect nginx:1.25-bookworm` and the official docker-nginx Dockerfile: user (UID 101 `nginx`), workdir, port 80, Entrypoint and Cmd, Env, STOPSIGNAL, filesystem layout, logs symlinked to stdout/stderr.
+
+## Base image rule
+Our image must sit on the same Debian as the baseline: Debian 12.5, same base-files, libc6 and library versions. Build and runtime base is `debian:bookworm-20240513-slim`, with apt pointed at `snapshot.debian.org` dated 2024-05-13 so old versions (for example libssl3 3.0.11-1~deb12u2) are installable. Each fix (bump or backport) is then a real change against that same base. After every build, diff the package list (`dpkg -l`) of the baseline against ours and explain every difference.
 
 ## Test rules
 Boot both images, send identical requests (root, custom config, large body, malformed), assert status + headers + body, exit non-zero on mismatch. Happy path must be identical; any intended difference on exploit or malformed requests must be documented.

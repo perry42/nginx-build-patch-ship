@@ -26,7 +26,7 @@ build/out/
 *.so
 
 # --- Scan intermediates (final baseline-*.txt and vex.json ARE tracked) ---
-scans/tmp/
+scans/
 scans/*.json
 *.sarif
 .trivycache/
@@ -65,3 +65,5 @@ credentials*.json
 .DS_Store
 Thumbs.db
 desktop.ini
+scans/*.err
+NEXT_SESSION.md

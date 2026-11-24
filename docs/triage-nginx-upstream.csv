@@ -1,0 +1,39 @@
+cve,title,nginx_severity,vulnerable,not_vulnerable,trigger,tier,fix_commits,applies_to_1.25.5,flagged_by_trivy_or_grype,default_config_reachable
+CVE-2026-132779,Excessive CPU usage in TLS 1.3 with ssl_early_data,medium,1.21.4-1.31.9,"1.31.10+, 1.30.8+",ssl_early_data,C,,,no,no
+CVE-2026-123634,Use-after-free during response processing in resolver,medium,0.6.18-1.31.8,"1.31.9+, 1.30.7+",resolver + subrequests,C,,,no,no
+CVE-2026-123007,Memory corruption in HTTP/2 flow control,major,1.9.5-1.31.8,"1.31.9+, 1.30.7+",HTTP/2 listener (http2 on / listen ... http2),B,b89c4100bf67 (rel-1.30.7) = mainline e27f5fa84fe6; 3 files,"yes (offsets, fuzz 1)",no,no
+CVE-2026-121810,Use-after-free in HTTP/3,medium,1.25.0-1.31.8,"1.31.9+, 1.30.7+",HTTP/3 (listen ... quic),C,,,no,no
+CVE-2026-123633,Use-after-free in HTTP/2,medium,1.19.7-1.31.8,"1.31.9+, 1.30.7+","HTTP/2 listener, worker_connections exhausted",B,,,no,no
+CVE-2026-118899,Infinite loop while reading client request body over TLS 1.3,major,1.13.0-1.31.8,"1.31.9+, 1.30.7+","listen ... ssl with TLS 1.3, reading request body",B,1b723277aa55 + d1640655f46c (rel-1.30.7); 1 hunk + HTTP/3 twin,yes (clean / offset),no,no
+CVE-2026-113425,Use-after-free in mail proxy module,major,0.5.33-1.31.8,"1.31.9+, 1.30.7+",mail proxy module,C,,,no,no
+CVE-2026-125283,Buffer overflow when using alias with try_files,minor,0.9.6-1.31.8,"1.31.9+, 1.30.7+",try_files + alias + map variable,C,b99b6b528b64 (rel-1.30.7) = mainline d1ffe6fa89fe; 1 line,yes (fuzz 1),no,no
+CVE-2026-120967,SNI bypass when using client certificate validation in stream,medium,1.25.5-1.31.8,"1.31.9+, 1.30.7+","stream module, ssl_verify_client + SNI",C,,,no,no
+CVE-2026-123640,Insufficient validation in stream ssl_preread module,minor,1.15.2-1.31.8,"1.31.9+, 1.30.7+",stream ssl_preread,C,,,no,no
+CVE-2026-15176,Buffer overflow when using alias with rewrite,medium,0.1.29-1.31.6,"1.31.7+, 1.30.6+",alias + rewrite,B,,,no,no
+CVE-2026-95101,Request body injection in HTTP/3,medium,1.25.0-1.31.6,"1.31.7+, 1.30.6+",HTTP/3,C,,,no,no
+CVE-2026-97629,Session forgery when using TLS session tickets,medium,1.23.2-1.31.6,"1.31.7+, 1.30.6+",TLS session ticket key rotation,C,,,no,no
+CVE-2026-97205,Use-after-free when using asynchronous file I/O (AIO),medium,0.8.11-1.31.6,"1.31.7+, 1.30.6+",aio + SSI include virtual,C,,,no,no
+CVE-2026-42533,Buffer overflow when using map and regex,major,0.9.6-1.31.2,"1.31.3+, 1.30.4+",map with regex captures used in a string,B,,,no,no
+CVE-2026-60005,Memory disclosure when using ngx_http_slice_module,medium,1.15.8-1.31.2,"1.31.3+, 1.30.4+",slice module / cache background update,C,,,no,no
+CVE-2026-56434,Use-after-free when using ngx_http_ssi_module,medium,0.8.11-1.31.2,"1.31.3+, 1.30.4+",ssi module,C,,,no,no
+CVE-2026-42055,Buffer overflow in the ngx_http_proxy_v2_module and ngx_http_grpc_module,medium,1.13.10-1.31.1,"1.31.2+, 1.30.3+","proxy to HTTP/2 or gRPC backend, ignore_invalid_headers off",C,,,no,no
+CVE-2026-48142,Buffer overread in the ngx_http_charset_module,low,0.3.50-1.31.1,"1.31.2+, 1.30.3+",charset_map,C,,,no,no
+CVE-2026-9256,Buffer overflow in the ngx_http_rewrite_module,medium,0.1.17-1.31.0,"1.31.1+, 1.30.2+",rewrite with overlapping regex captures + redirect or ?args,B,"3f135ae2eb60 (rel-1.30.2) = mainline ca4f92a27464; 13+/7-, apply after 42945","yes (applied in sequence, clean)",no,no
+CVE-2026-42945,Buffer overflow in the ngx_http_rewrite_module,medium,0.6.27-1.30.0,"1.31.0+, 1.30.1+",rewrite followed by rewrite/if/set using $1 with '?' in replacement,B,524977e7c534 (rel-1.30.1) = mainline 2046b45aa0c6; 1 line,"yes (patch --dry-run, clean)",no,no
+CVE-2026-42946,Buffer overread in the ngx_http_scgi_module and ngx_http_uwsgi_module,medium,0.8.42-1.30.0,"1.31.0+, 1.30.1+",scgi_pass / uwsgi_pass,C,,,no,no
+CVE-2026-42934,Buffer overread in the ngx_http_charset_module,low,0.3.50-1.30.0,"1.31.0+, 1.30.1+",charset_map,C,,,no,no
+CVE-2026-40460,HTTP/3 address spoofing,medium,1.25.0-1.30.0,"1.31.0+, 1.30.1+",HTTP/3,C,,,no,no
+CVE-2026-40701,resolver use-after-free in OCSP,medium,1.19.0-1.30.0,"1.31.0+, 1.30.1+",ssl_ocsp + resolver,C,,,no,no
+CVE-2026-27654,Buffer overflow in ngx_http_dav_module,medium,0.5.13-1.29.6,"1.29.7+, 1.28.3+",dav module COPY/MOVE + alias,C,,,no,no
+CVE-2026-27784,Buffer overflow in the ngx_http_mp4_module,medium,1.1.19-1.29.6,"1.29.7+, 1.28.3+",mp4 module (32-bit only),C,,,no,no
+CVE-2026-32647,Buffer overflow in the ngx_http_mp4_module,medium,1.1.19-1.29.6,"1.29.7+, 1.28.3+",mp4 module,C,,,no,no
+CVE-2026-27651,NULL pointer dereference while using CRAM-MD5 or APOP,low,0.5.15-1.29.6,"1.29.7+, 1.28.3+",mail CRAM-MD5/APOP,C,,,no,no
+CVE-2026-28753,Injection in auth_http and XCLIENT,medium,0.6.27-1.29.6,"1.29.7+, 1.28.3+",mail auth_http/XCLIENT,C,,,no,no
+CVE-2026-1642,SSL upstream injection,medium,1.3.0-1.29.4,"1.29.5+, 1.28.2+",proxy_pass https:// (SSL upstream),B,,,no,no
+CVE-2025-53859,Buffer overread in the ngx_mail_smtp_module,low,0.7.22-1.29.0,1.29.1+,mail smtp,C,,,no,no
+CVE-2025-23419,SSL session reuse vulnerability,medium,1.11.4-1.27.3,"1.27.4+, 1.26.3+",TLS 1.3 + SNI + client certs,C,,,no,no
+CVE-2024-7347,Buffer overread in the ngx_http_mp4_module,low,1.5.13-1.27.0,"1.27.1+, 1.26.2+",mp4 module + mp4 directive,C,88955b1044ef + 7362d01658b6 (rel-1.27.1); also nginx.org/download/patch.2024.mp4.txt,yes (-p1 clean),no,no
+CVE-2024-32760,Buffer overwrite in HTTP/3,medium,"1.25.0-1.25.5, 1.26.0","1.27.0+, 1.26.1+",HTTP/3,C,,,no,no
+CVE-2024-31079,Stack overflow and use-after-free in HTTP/3,medium,"1.25.0-1.25.5, 1.26.0","1.27.0+, 1.26.1+",HTTP/3,C,,,no,no
+CVE-2024-35200,NULL pointer dereference in HTTP/3,medium,"1.25.0-1.25.5, 1.26.0","1.27.0+, 1.26.1+",HTTP/3,C,,,no,no
+CVE-2024-34161,Memory disclosure in HTTP/3,medium,"1.25.0-1.25.5, 1.26.0","1.27.0+, 1.26.1+",HTTP/3,C,,,no,no
