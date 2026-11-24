@@ -1,0 +1,32 @@
+# Baseline facts: nginx:1.25-bookworm (collected 2026-11-24)
+digest: nginx@sha256:a484819eb60211f5299034ac80f6a681b06f89e65866ce91f356ed7c72af059c
+trivy: aquasec/trivy:0.76.2   grype: anchore/grype:v0.122.1
+
+## nginx -V
+nginx version: nginx/1.25.5
+built by gcc 12.2.0 (Debian 12.2.0-14) 
+built with OpenSSL 3.0.9 30 May 2023 (running with OpenSSL 3.0.11 19 Sep 2023)
+TLS SNI support enabled
+configure arguments: --prefix=/etc/nginx --sbin-path=/usr/sbin/nginx --modules-path=/usr/lib/nginx/modules --conf-path=/etc/nginx/nginx.conf --error-log-path=/var/log/nginx/error.log --http-log-path=/var/log/nginx/access.log --pid-path=/var/run/nginx.pid --lock-path=/var/run/nginx.lock --http-client-body-temp-path=/var/cache/nginx/client_temp --http-proxy-temp-path=/var/cache/nginx/proxy_temp --http-fastcgi-temp-path=/var/cache/nginx/fastcgi_temp --http-uwsgi-temp-path=/var/cache/nginx/uwsgi_temp --http-scgi-temp-path=/var/cache/nginx/scgi_temp --user=nginx --group=nginx --with-compat --with-file-aio --with-threads --with-http_addition_module --with-http_auth_request_module --with-http_dav_module --with-http_flv_module --with-http_gunzip_module --with-http_gzip_static_module --with-http_mp4_module --with-http_random_index_module --with-http_realip_module --with-http_secure_link_module --with-http_slice_module --with-http_ssl_module --with-http_stub_status_module --with-http_sub_module --with-http_v2_module --with-http_v3_module --with-mail --with-mail_ssl_module --with-stream --with-stream_realip_module --with-stream_ssl_module --with-stream_ssl_preread_module --with-cc-opt='-g -O2 -ffile-prefix-map=/data/builder/debuild/nginx-1.25.5/debian/debuild-base/nginx-1.25.5=. -fstack-protector-strong -Wformat -Werror=format-security -Wp,-D_FORTIFY_SOURCE=2 -fPIC' --with-ld-opt='-Wl,-z,relro -Wl,-z,now -Wl,--as-needed -pie'
+
+## Config
+{"ExposedPorts":{"80/tcp":{}},"Env":["PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin","NGINX_VERSION=1.25.5","NJS_VERSION=0.8.4","NJS_RELEASE=3~bookworm","PKG_RELEASE=1~bookworm"],"Entrypoint":["/docker-entrypoint.sh"],"Cmd":["nginx","-g","daemon off;"],"Labels":{"maintainer":"NGINX Docker Maintainers <docker-maint@nginx.com>"},"StopSignal":"SIGQUIT","ArgsEscaped":true}
+
+## nginx packages
+ii  nginx                     1.25.5-1~bookworm              amd64        high performance web server
+ii  nginx-module-geoip        1.25.5-1~bookworm              amd64        nginx GeoIP dynamic modules
+ii  nginx-module-image-filter 1.25.5-1~bookworm              amd64        nginx image filter dynamic module
+ii  nginx-module-njs          1.25.5+0.8.4-3~bookworm        amd64        nginx njs dynamic modules
+ii  nginx-module-xslt         1.25.5-1~bookworm              amd64        nginx xslt dynamic module
+uid=101(nginx) gid=101(nginx) groups=101(nginx)
+/docker-entrypoint.d:
+total 20
+-rwxr-xr-x 1 root root 2125 May 14  2024 10-listen-on-ipv6-by-default.sh
+-rwxr-xr-x 1 root root  336 May 14  2024 15-local-resolvers.envsh
+-rwxr-xr-x 1 root root 3018 May 14  2024 20-envsubst-on-templates.sh
+-rwxr-xr-x 1 root root 4619 May 14  2024 30-tune-worker-processes.sh
+
+/var/log/nginx:
+total 0
+lrwxrwxrwx 1 root root 11 May 14  2024 access.log -> /dev/stdout
+lrwxrwxrwx 1 root root 11 May 14  2024 error.log -> /dev/stderr

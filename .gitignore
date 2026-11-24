@@ -65,3 +65,4 @@ credentials*.json
 .DS_Store
 Thumbs.db
 desktop.ini
+scans/*.err
