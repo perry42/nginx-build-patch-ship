@@ -3,6 +3,7 @@
 #
 #   make all      build the .deb and the image, run the parity tests, scan, diff
 #   make test     boot the original and our image and compare them (needs `make image`)
+#   make verify   short proof of the fixes against the original (needs both images)
 #   make help     list targets
 
 ORIGINAL   ?= nginx:1.25-bookworm
@@ -19,13 +20,14 @@ export MSYS_NO_PATHCONV = 1
 TRIVY = docker run --rm -v $(CURDIR):/work -v trivy-cache:/root/.cache -v //var/run/docker.sock:/var/run/docker.sock aquasec/trivy:$(TRIVY_TAG)
 GRYPE = docker run --rm -v $(CURDIR):/work -v grype-db:/root/.cache/grype -v //var/run/docker.sock:/var/run/docker.sock anchore/grype:$(GRYPE_TAG)
 
-.PHONY: help all deb image deps test scan vex diff sizes clean
+.PHONY: help all deb image deps test verify scan vex diff sizes clean
 
 help:
 	@echo "deb     build the nginx .deb from source into dist/ (build/Dockerfile)"
 	@echo "image   build $(PATCHED) from the Containerfile (also builds the .deb)"
 	@echo "deps    install the test requirements (pip)"
 	@echo "test    parity tests: $(ORIGINAL) vs $(PATCHED)"
+	@echo "verify  check the fixes: tests pass on ours, fail on the original (not alongside make test)"
 	@echo "scan    Trivy and Grype on both images, same session, into $(SCANDIR)/"
 	@echo "vex     rescan our image with vex.json applied (Trivy and Grype --vex)"
 	@echo "diff    per-CVE diff of the scans into reports/cve-diff.generated.txt"
@@ -48,6 +50,11 @@ deps:
 # Exits non-zero on any mismatch. Pass pytest options with ARGS="-k rewrite".
 test:
 	ORIGINAL_IMAGE=$(ORIGINAL) PATCHED_IMAGE=$(PATCHED) $(PY) -m pytest test -q $(ARGS)
+
+# Quick proof of the fixes. Does not build or scan; needs both images. Never run it
+# at the same time as `make test` (the fixtures remove each other's containers).
+verify:
+	$(PY) scripts/verify.py $(ORIGINAL) $(PATCHED)
 
 # Both images scanned back to back with the same pinned scanner versions, so a
 # vulnerability database update cannot show up as a difference between them.

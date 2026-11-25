@@ -4,6 +4,20 @@ A drop-in replacement for `nginx:1.25-bookworm`, built from the upstream nginx 1
 
 I wrote this as I went, so the decisions come with the reasons I made them, including the places where I changed my mind.
 
+## Verify me in 5 minutes
+
+I wrote `make verify` so you can check my claims without reading my code. It needs both images to exist already (`nginx:1.25-bookworm` and `echo/nginx:1.25-patched`, after `make image`). It does not build or scan.
+
+It runs the three tests that prove my fixes (four test cases, because the zlib one runs in two modes). First against my image, where they pass. Then a second time with the original image in both slots, where they must fail. That failure is the point: a fix test that also passes on the unfixed image proves nothing. It also compares image sizes and the libssl3 version in both images, and prints my saved VEX diff from `reports/vex-diff.txt`. That last part is a saved report, not recomputed.
+
+It does not prove drop-in parity (that is the full `make test`) or the scan results (`make scan vex diff`, part of `make all`). Do not run it at the same time as `make test`: the test fixtures remove each other's containers.
+
+```sh
+make verify
+```
+
+The last line reads `VERIFY: PASS (n/n checks)` or `VERIFY: FAIL (names of the failed checks)`. I have not timed a full run. The zlib proof of concept waits 5 seconds on every original-image run and compiles a small C program, so expect minutes, not seconds.
+
 ## What is in here
 
 | Path | What it is |
