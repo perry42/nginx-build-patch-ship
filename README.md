@@ -49,7 +49,7 @@ The last line reads `VERIFY: PASS (n/n checks)` or `VERIFY: FAIL (names of the f
 | `.claude/agents/` | The four agent definitions used for this project (see AI tools used). |
 | `test/` | pytest + requests suite that boots both images and compares them. |
 | `Makefile` | One entry point for everything below. |
-| Git history | `git log --first-parent --oneline main` lists the work in order, one merge per milestone (baseline, build, layout, zlib backport, VEX, `make verify`, CI, reproducible builds). I kept the real history, including early stacked branches, and did not rewrite it. |
+| Git history | `git log --first-parent --oneline main` lists the work in order, one merge per milestone (baseline, build, layout, zlib backport, VEX, `make verify`, CI, reproducible builds). The history is as it happened; I did not rewrite it. |
 | `reports/` | Trivy and Grype output for both images, and the per-CVE diff. |
 | `baseline-trivy.txt`, `baseline-grype.txt` | The first baseline scans. |
 
