@@ -1,0 +1,43 @@
+{
+  "@context": "https://openvex.dev/ns/v0.2.0",
+  "@id": "https://github.com/perry42/nginx-build-patch-ship/blob/main/vex.json",
+  "author": "nginx-build-patch-ship (perry42)",
+  "timestamp": "2026-11-25T00:30:00Z",
+  "version": 1,
+  "statements": [
+    {
+      "vulnerability": {
+        "name": "CVE-2026-27171",
+        "description": "zlib: infinite loop in crc32_combine64() and crc32_combine_gen64() when len2 is negative"
+      },
+      "products": [
+        { "@id": "pkg:deb/debian/zlib1g@1.2.13.dfsg-1?arch=amd64&distro=debian-12.5&epoch=1" },
+        { "@id": "pkg:deb/debian/zlib1g@1%3A1.2.13.dfsg-1?arch=amd64&distro=debian-12.5&upstream=zlib" }
+      ],
+      "status": "fixed",
+      "status_notes": "Backport of madler/zlib commit ba829a45 (hand-ported to Debian's zlib 1.2.13 K&R layout) in build/patches/zlib/CVE-2026-27171.patch, built with dpkg-buildpackage. The package keeps Debian's version string on purpose, so scanners still flag it. Proven by test/test_zlib.py: the original hangs on a negative length, this build returns 0. nginx does not call the affected functions."
+    },
+    {
+      "vulnerability": {
+        "name": "CVE-2026-42945",
+        "description": "nginx rewrite module: wrong escaping of a capture and possible buffer overrun"
+      },
+      "products": [
+        { "@id": "pkg:deb/debian/nginx@1.25.5-1~echo1?arch=amd64&distro=debian-12.5" }
+      ],
+      "status": "fixed",
+      "status_notes": "Upstream commit 2046b45aa0c6 applied unchanged as build/patches/CVE-2026-42945.patch. Proven by test_cve_2026_42945_capture_unescaping_differs. Neither Trivy nor Grype lists this CVE for any nginx package, so this statement documents the fix but removes no scanner row."
+    },
+    {
+      "vulnerability": {
+        "name": "CVE-2026-9256",
+        "description": "nginx rewrite module: heap buffer overflow with overlapping captures"
+      },
+      "products": [
+        { "@id": "pkg:deb/debian/nginx@1.25.5-1~echo1?arch=amd64&distro=debian-12.5" }
+      ],
+      "status": "fixed",
+      "status_notes": "Upstream commit ca4f92a27464 applied unchanged as build/patches/CVE-2026-9256.patch. Proven by test_cve_2026_9256_overlapping_captures (original worker crashes on a 3000-character URI, this build does not). Not listed by either scanner, so no scanner row to remove."
+    }
+  ]
+}
