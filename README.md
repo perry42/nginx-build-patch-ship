@@ -4,6 +4,24 @@ A drop-in replacement for `nginx:1.25-bookworm`, built from the upstream nginx 1
 
 I wrote this as I went, so the decisions come with the reasons I made them, including the places where I changed my mind.
 
+**Contents**
+
+- [Verify me in 5 minutes](#verify-me-in-5-minutes)
+- [What is in here](#what-is-in-here)
+- [Build and run](#build-and-run)
+- [Image size](#image-size)
+- [The base: why it is pinned](#the-base-why-it-is-pinned)
+- [The four changes](#the-four-changes)
+- [Bump or backport: how I decided](#bump-or-backport-how-i-decided)
+- [Scan results](#scan-results)
+- [Scanners do not see the backports](#scanners-do-not-see-the-backports)
+- [VEX (bonus)](#vex-bonus)
+- [Tests: what "working correctly" means](#tests-what-working-correctly-means)
+- [Intended differences](#intended-differences)
+- [Residual risk: what remains and why](#residual-risk-what-remains-and-why)
+- [Surprises, and what I would do differently](#surprises-and-what-i-would-do-differently)
+- [AI tools used](#ai-tools-used)
+
 ## Verify me in 5 minutes
 
 I wrote `make verify` so you can check my claims without reading my code. It needs both images to exist already (`nginx:1.25-bookworm` and `echo/nginx:1.25-patched`, after `make image`). It does not build or scan.
