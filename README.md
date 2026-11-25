@@ -1,6 +1,6 @@
 # Echo: Build It, Patch It, Ship It
 
-A drop-in replacement for `nginx:1.25-bookworm`, built from the upstream nginx 1.25.5 source on a pinned `debian:bookworm-slim`, with three real security changes covering five CVEs: one library bump (48 unique CVEs cleared on libssl3 and openssl; I highlight the three that matter most) and two upstream patches backported onto the version we ship (one CVE each).
+A drop-in replacement for `nginx:1.25-bookworm`, built from the upstream nginx 1.25.5 source on a pinned `debian:bookworm-slim`, with four real security changes: one library bump (48 unique CVEs cleared on libssl3 and openssl; I highlight the three that matter most) and three backported patches, two in nginx's rewrite module and one in zlib (one CVE each).
 
 I wrote this as I went, so the decisions come with the reasons I made them, including the places where I changed my mind.
 
@@ -9,7 +9,9 @@ I wrote this as I went, so the decisions come with the reasons I made them, incl
 | Path | What it is |
 |---|---|
 | `build/build.sh`, `build/Dockerfile` | Fetches the nginx 1.25.5 tarball, checks its SHA-256, applies `build/patches/`, builds, and packs a `.deb`. |
-| `build/patches/CVE-*.patch` | The two backports, byte-identical to the upstream commits. |
+| `build/patches/CVE-*.patch` | The two nginx backports, byte-identical to the upstream commits. `build/patches/zlib/` holds the zlib one, a hand-port (see below). |
+| `build/build-zlib.sh` | Rebuilds Debian's zlib1g from its source package with the zlib patch, as a second `.deb`. |
+| `vex.json` | OpenVEX statements for the three backports. |
 | `build/pkgfiles/`, `image/rootfs/` | Config files, welcome page and entrypoint scripts copied from the baseline image (same checksums). |
 | `Containerfile` | Two stages: build the `.deb`, then install it on the same Debian the baseline uses. |
 | `test/` | pytest + requests suite that boots both images and compares them. |
@@ -26,6 +28,7 @@ make image      # builds the .deb from source, then echo/nginx:1.25-patched
 make deps       # pip install -r test/requirements.txt
 make test       # boots nginx:1.25-bookworm and our image, compares them, exits non-zero on any mismatch
 make scan       # Trivy + Grype on both images, same session (about 12 minutes)
+make vex        # rescan our image with vex.json applied; the zlib row disappears
 make diff       # CVE diff of the scans, written to reports/cve-diff.generated.txt (git-ignored; reports/cve-diff.txt is the committed copy with notes)
 make sizes      # image sizes
 make all        # all of the above
@@ -51,7 +54,7 @@ The first question I asked was "against what do I patch?" If my image sat on tod
 - apt points at `snapshot.debian.org` dated 2024-05-13, so old versions are installable.
 - Exact version pins everywhere. A bare `apt-get install pcre2` silently upgraded pcre2 to `10.42-1+deb12u2` in one of my first builds, and I only noticed from the package diff. That is why the package list is diffed after every build.
 
-## The three changes
+## The four changes
 
 Counting unit for scan numbers below: one row is one CVE on one package, so a CVE on libssl3 and openssl counts twice. Unique-CVE counts are in `reports/cve-diff.txt`.
 
@@ -62,6 +65,7 @@ Counting unit for scan numbers below: one row is one CVE on one package, so a CV
 | CVE-2024-6119 | High (Trivy and Grype; CVSS 7.5) | **Bump** (same) | X.509 name check, relevant when nginx verifies certificates. Trivy's fixed version for it is 3.0.14; we ship 3.0.22 | same files; https://nvd.nist.gov/vuln/detail/CVE-2024-6119 |
 | CVE-2026-42945 | Medium per nginx.org, High (8.1) per NVD | **Backport** onto nginx 1.25.5 | Rewrite module: wrong escaping of a capture and a possible buffer overrun | `build/patches/CVE-2026-42945.patch` (upstream commit [`2046b45aa0c6`](https://github.com/nginx/nginx/commit/2046b45aa0c6e712c216b9075886f3f26e9b4ca9)); test `test_cve_2026_42945_capture_unescaping_differs` |
 | CVE-2026-9256 | Medium per nginx.org (affects 0.1.17 to 1.31.0) | **Backport** onto nginx 1.25.5 | Rewrite module: heap overflow with overlapping captures. Crashes the original worker | `build/patches/CVE-2026-9256.patch` (upstream commit [`ca4f92a27464`](https://github.com/nginx/nginx/commit/ca4f92a27464ae6c2082245e4f67048c633aa032)); test `test_cve_2026_9256_overlapping_captures` |
+| CVE-2026-27171 | Medium (Trivy and Grype) | **Backport** onto Debian's zlib 1.2.13 | zlib: infinite loop in `crc32_combine64` and `crc32_combine_gen64` when the length is negative. nginx never calls these, so it is not reachable through nginx | `build/patches/zlib/CVE-2026-27171.patch`, a hand-port of upstream [`ba829a45`](https://github.com/madler/zlib/commit/ba829a458576d1ff0f26fc7230c6de816d1f6a77); test `test_cve_2026_27171_poc`; the scanner row disappears with VEX: `reports/vex-diff.txt` |
 
 Sources: https://nginx.org/en/security_advisories.html, https://www.cve.org/CVERecord?id=CVE-2026-42945.
 
@@ -73,22 +77,32 @@ Proof that it is the bump and not scanner noise: the installed libssl3 version i
 
 Result, Trivy (CVE, package) rows: 960 down to 370. Only 96 of the 592 rows that disappeared come from the bump (one of the two Trivy Criticals among them: CVE-2026-31789; Grype also rates CVE-2025-15467 Critical). See "Scan results" for the rest.
 
-### The two backports
+### The backports
 
-Both patches are the upstream commits unchanged, from the GitHub mirror (hg.nginx.org is decommissioned). `build.sh` applies them with `patch -p1 --fuzz=0`: if a hunk needed fuzz to land, the build would fail instead of quietly guessing.
+The two nginx patches are the upstream commits unchanged, from the GitHub mirror (hg.nginx.org is decommissioned). `build.sh` applies them with `patch -p1 --fuzz=0`: if a hunk needed fuzz to land, the build would fail instead of quietly guessing.
 
 I made two mistakes while proving them, and both taught me something:
 - For 42945 I first wrote down the wrong "expected" output. nginx decodes the URL before the rewrite, so the patched answer `myvar=[/a/x y&z/q]` is the correct one. The original gives `myvar=[/a/x%20y%2]`. The test compares both exactly.
 - For 9256 my first proof-of-concept URL, 30 characters, did not crash the original. A URL of 3000 `+` characters does, reliably (found by test-agent). A backport you cannot show failing before and working after is a claim, not evidence, so the test needs the failing side.
 
-Why two nginx backports and not a library one: the brief asks for a CVE fixed upstream only in later versions, ported onto what we ship. These are in the module that handles every `rewrite`, I can show both failing and fixed with plain HTTP requests, and the patches are small enough to review line by line.
+Why two nginx backports: the brief asks for a CVE fixed upstream only in later versions, ported onto what we ship. These are in the module that handles every `rewrite`, I can show both failing and fixed with plain HTTP requests, and the patches are small enough to review line by line.
+
+### The zlib backport
+
+Neither scanner lists the nginx CVEs, so I needed one backport on something they do list, to show the VEX step the brief asks for. zlib CVE-2026-27171 is listed by both, Debian has no fixed bookworm version, and upstream has a two-line fix.
+
+- **It is a hand-port, not upstream's commit.** Upstream's patch is written for the current zlib layout. Debian ships zlib 1.2.13, whose `crc32.c` uses old-style C function definitions, so upstream's patch does not apply. I put the same two guards (`if (len2 < 0) return 0;`) in the same two functions and produced a patch against Debian's real source, `build/patches/zlib/CVE-2026-27171.patch`. I left out upstream's comment-only change to `zlib.h`.
+- **How it is built.** `build/build-zlib.sh` fetches Debian's source package (`apt source zlib=1:1.2.13.dfsg-1`, the version the baseline has), applies the patch with `--fuzz=0`, and runs `dpkg-buildpackage`. This is a second `.deb`. The `Containerfile` reinstalls it over the stock package with `dpkg -i`.
+- **The version string stays `1:1.2.13.dfsg-1` on purpose.** The scanners therefore still flag it, and `vex.json` is the declaration that it is fixed. `dpkg -V zlib1g` reports the same two missing changelog files on both images, so dpkg's checksums match the rebuilt library.
+- **The proof.** `test/fixtures/zlib/poc.c` calls both functions with a length of -1, linked against whichever libz the image provides. On the original image it never returns (killed after 5 seconds, exit 124). On ours it returns 0 at once. My first version of this program did not hang on the original either: without `#define _LARGEFILE64_SOURCE`, zlib.h does not declare the 64-bit functions, so the call passed a 32-bit integer and never sent a negative length. The compiler warned about it. It is now compiled with that warning as an error, and I only believed the test once the original really hung.
+- **Since I replaced zlib, I also test what nginx uses it for.** gzip responses (and `gzip_static`) are byte-identical on both images, including the compressed bytes.
 
 ## Bump or backport: how I decided
 
 For every CVE I asked the same two questions, in this order.
 
 1. **Does Debian already ship a fixed version of the package I have?** Then it is a **bump**: I install that version. This is what happened with libssl3 (`3.0.22-1~deb12u2` exists, so I use it).
-2. **If not, does upstream have a small fix commit?** Then it is a **backport**: I take only that fix and apply it to the version I ship. This is what happened with the two nginx rewrite bugs, and it is the plan for zlib CVE-2026-27171 (Debian has no fixed bookworm version, upstream has a two-line fix).
+2. **If not, does upstream have a small fix commit?** Then it is a **backport**: I take only that fix and apply it to the version I ship. This is what happened with the two nginx rewrite bugs, and it is what I did for zlib CVE-2026-27171 (Debian has no fixed bookworm version, upstream has a two-line fix).
 
 The tempting third option is to swap in a much newer upstream release (nginx 1.30, or zlib 1.3.x). I did not, because that is a big change: it carries every other change made since, the package stops being Debian's package, and the compatibility risk is mine. The brief asks for a drop-in replacement, not a re-imagining, and for a patch applied to the version we ship. Taking only the lines that fix the bug keeps everything else byte-for-byte the same as the baseline.
 
@@ -124,13 +138,22 @@ Neither scanner ever lists CVE-2026-42945 or CVE-2026-9256, before or after. The
 
 ## VEX (bonus)
 
-Not done yet. A VEX statement can only hide a row that a scanner printed, and neither scanner prints our nginx CVEs, so it has nothing to remove. The only scanner-visible candidate I found is zlib CVE-2026-27171 (listed by both scanners, no Debian fix, a two-line upstream fix). It is optional and I am treating it as the last item.
+`vex.json` is an OpenVEX v0.2.0 document with one statement per backport. I applied it with both scanners to the same image, in the same session, with the same pinned versions (`make vex`):
+
+| | rows without VEX | rows with VEX | what changed |
+|---|---|---|---|
+| Trivy 0.76.2 | 370 | 369 | CVE-2026-27171 on zlib1g removed |
+| Grype v0.122.1 | 348 | 347 | CVE-2026-27171 on zlib1g removed (Grype moves it to its ignored list) |
+
+Nothing else changed in either scanner. Evidence: `reports/vex-diff.txt`, `reports/vex-trivy.txt` and `reports/vex-grype.txt`, compared with `reports/fixed-trivy.txt` and `reports/fixed-grype.txt`.
+
+The VEX file also says the two nginx CVEs are fixed, but neither scanner lists them with or without VEX, so those two statements document the fix and remove no row. The product identifiers in the zlib statement are the ones each scanner reported for the package (they write the epoch differently), so both match.
 
 ## Tests: what "working correctly" means
 
 The suite boots `nginx:1.25-bookworm` and our image as separate containers, sends identical requests and compares status line, all headers except `Date`, and the body. It exits non-zero on any mismatch.
 
-Covered (63 tests):
+Covered (78 tests):
 - default config responses (`/`, `/missing`, `/50x.html`) and identical entrypoint startup log lines
 - mounted `conf.d`, and `envsubst` templates
 - `rewrite` last/break/redirect/permanent, captures, malformed `%` escapes
@@ -140,10 +163,13 @@ Covered (63 tests):
 - TLS: same response and same negotiated protocol and cipher
 - `docker inspect` fields, file layout, modes, owners, and SHA-256 of every file under `/etc/nginx` and the html folder
 - log symlinks, user `nginx` (UID 101), graceful `docker stop`
+- the files the `nginx` package itself ships (`nginx-debug`, `/etc/default`, init scripts, logrotate, systemd units): mode, owner and checksum, the dpkg conffile list, the `dpkg -L` file list, and that `nginx-debug` runs and serves the same page
+- gzip and `gzip_static` responses, including the compressed bytes (zlib was replaced)
+- the zlib CVE-2026-27171 proof-of-concept (hangs on the original, returns on ours), and that the zlib1g version string is identical while the library file differs
 
-Not covered: HTTP/2, proxying, gzip, reload and signals beyond the SIGQUIT stop, runtime log content.
+Not covered: HTTP/2, proxying, reload and signals beyond the SIGQUIT stop, runtime log content.
 
-The suite can fail on purpose. Run it with both sides set to the original image and exactly four tests fail: the two CVE tests and two documented-difference tests (environment variables and labels). I use that to check that the tests really detect a missing patch.
+The suite can fail on purpose. Run it with both sides set to the original image and exactly seven tests fail, all intended: the two nginx CVE tests, the zlib proof-of-concept (two cases), the zlib version/library check, and two documented-difference tests (environment variables and labels). I use that to check that the tests really detect a missing patch.
 
 ## Intended differences
 
@@ -157,7 +183,8 @@ Everything below is a deliberate difference from the official image.
 | No `NJS_*` environment variables, no `maintainer` label | The label names the nginx Docker maintainers; I am not them. |
 | No curl, libcurl4, or their dependency chain | See below. |
 | No dynamic modules: geoip, image-filter, njs, xslt | See below. |
-| 93 packages against the baseline's 149 | 56 packages are missing, all from the items above (curl chain, module libraries). No package was added. Three versions differ: libssl3 and openssl (the bump) and nginx itself. |
+| zlib1g has the same version string but different contents | The CVE-2026-27171 backport. `libz.so.1.2.13` differs from the baseline's, and a test documents it. |
+| 93 packages against the baseline's 149 | 56 packages are missing, all from the items above (curl chain, module libraries). No package was added. Three versions differ: libssl3 and openssl (the bump) and nginx itself. zlib1g keeps its version but its contents differ (row above). |
 
 ### Why curl is not in the image
 
@@ -187,6 +214,7 @@ Same logic: they are separate packages in the official image, not part of the ng
 ## Surprises, and what I would do differently
 
 - **Trivy flags our `nginx` package, not the baseline's.** Trivy reports CVE-2009-4487 and CVE-2013-0337 (both LOW, old issues in Debian's own `nginx` package, which is version 1.22.1) on our package but not on the baseline's. These are false positives for upstream 1.25.5. I probed the cause: setting our package's Maintainer to the nginx.org packager made both rows disappear; changing only the version suffix did not. Grype reports both CVEs on both images, so it ignores the Maintainer. I tried only one alternative maintainer and found no documentation of the mechanism, so this is an observation, not an explanation. I did not copy the nginx.org maintainer into our package to hide the rows: we are not them. The deeper lesson is the same as the backport blind spot: scanners match package metadata, not what the binary contains.
+- **My first zlib proof-of-concept proved nothing.** It ran fine on the original image too, because a missing macro made it pass a 32-bit integer instead of a negative 64-bit one. The compiler warned and I read the test result, not the warnings. A test that passes on the unpatched build tells you nothing, so every fix test of mine now has to fail on the original first.
 - **apt silently upgraded pcre2.** Fixed with exact version pins.
 - **IPv6 listen was off in my first image.** I only found it by comparing startup logs of both images. The entrypoint script compares `default.conf` to the checksum that dpkg recorded, so the config files must ship as dpkg conffiles, like the official package does.
 - **Config files arrived executable.** They came through a Windows checkout. Fixed with `chmod 0644` in `build.sh`.
