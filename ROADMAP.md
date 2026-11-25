@@ -1,38 +1,59 @@
-# Roadmap
+# Roadmap: how I did this, and what I would do next
 
-How the work went, in the order I did it and why, and what I would do next. The numbers come from the files in `reports/` and the tests in `test/`.
+The short version for a reader in a hurry. Every number here comes from a file in `reports/` or a test in `test/`; the README has the detail.
 
-## Done, in order
+## In 30 seconds
 
-| Step | What I did | Why in this order | Evidence |
-|---|---|---|---|
-| 1. Baseline | Pulled `nginx:1.25-bookworm`, recorded the digest, `nginx -V` and the package list. Scanned with Trivy and Grype, both pinned. | I measured before choosing anything. | `baseline-trivy.txt`, `baseline-grype.txt` |
-| 2. Triage | Sorted CVEs into bump, backport or out of scope. Removal never counts. | The brief asks for different techniques and a clear reason for each pick. | README, per-CVE table |
-| 3. Build | Own script builds nginx 1.25.5 from the upstream tarball (pinned hash) with the baseline's configure flags, then packs a `.deb`. | A real artifact I can inspect, and no pre-built binaries. | `build/build.sh` |
-| 4. Fixes | Bump: `libssl3` to 3.0.22-1~deb12u2. Backports: nginx CVE-2026-42945 and CVE-2026-9256 (upstream commits, unchanged). Backport: zlib CVE-2026-27171 (hand-port, Debian ships 1.2.13). | Each covers a different part of the brief. | `build/patches/`, `build/build-zlib.sh` |
-| 5. Drop-in image | Same Debian 12.5 base as the original, user 101, entrypoint, ports, log symlinks, the files the nginx package ships. | Fixes only count if nothing else changes. | `Containerfile`, `docker inspect` diff |
-| 6. Tests | pytest + requests boot both images and compare status, headers and body. Fix tests must fail on the original and pass on ours. | A test that passes on the unpatched build proves nothing. | `test/`, 79 tests, 8 intended failures on the original |
-| 7. Rescan and VEX | Rescanned both images in one session. Wrote `vex.json` and rescanned with `--vex`. | Scanners match version strings, so a backport needs a VEX statement. | `reports/` |
-| 8. CI and rehearsal | GitHub Actions builds once, then runs the tests, `make verify` and the scans in parallel. Fresh-clone `make all --no-cache` before the freeze. | What a reviewer would do, on a second Docker setup too. | `.github/workflows/ci.yml`, README |
+I rebuilt `nginx:1.25-bookworm` from source on the same pinned Debian, so it is a drop-in replacement, and fixed four CVEs in it:
 
-## Numbers
+| Fix | CVE | How |
+|---|---|---|
+| libssl3 and openssl 3.0.11 to 3.0.22 | many, including the Critical CVE-2026-31789 | **Bump** (Debian ships the fix) |
+| nginx rewrite module | CVE-2026-42945, CVE-2026-9256 | **Backport** of the upstream commits, unchanged |
+| zlib 1.2.13 | CVE-2026-27171 | **Backport**, hand-ported (Debian's source is older than upstream's patch) |
 
-- Frozen-database run of 2026-11-25: Trivy 955 to 365 rows, Grype 889 to 345. Of the removed Trivy rows, 96 are the libssl3 bump and 496 come from packages I left out (not counted as fixes). The first baseline (older databases) had 960 and 892.
-- VEX: Trivy 365 to 364, Grype 345 to 344. Only the zlib row disappears.
-- Image size: 179 MB against 276 MB.
+Removing packages is not counted as a fix. The image is 179 MB against 276 MB, mostly from removal, and I say so in the README.
 
-## What I got wrong on the way (and fixed)
+## How I proved it, not just claimed it
 
-- My first expected output for the 42945 test was wrong. I now record the output of both builds.
-- My first zlib proof-of-concept passed on the unpatched build too (a missing macro). Now it is compiled with that warning as an error.
-- apt silently upgraded pcre2. Now versions are pinned and the package list is diffed against the baseline.
-- A host-port race made 27 tests error at once. It was the test harness, not nginx. Fixed with unique ports and retries.
-- Docker once left the patched zlib library out of an image layer on GitHub Actions (same size and file time as the original). Found by comparing the layers; fixed with a later `SOURCE_DATE_EPOCH`. Before the fix 2 of 6 CI runs failed, after it 0 of 9.
-- The scanner databases moved in the middle of a run, and Grype never stored its database in the cache volume. Now one update per run, then frozen.
+- **79 tests** boot both images and compare status, headers and body. Eight fail on the original on purpose: the fix tests and the documented differences. A fix test has to fail on the original first, or it proves nothing.
+- **`make verify`** (about 3 minutes) re-runs only the fix tests twice, once against the original and once against mine, and fails if the original passes.
+- **Scans:** Trivy and Grype, databases frozen for the run. Trivy 955 to 365 rows, Grype 889 to 345. A VEX file (`vex.json`) removes exactly one more row in each scanner, the zlib one.
+- **Reproducible build:** `make repro` builds both `.deb` files from scratch and checks their hashes. They match on my laptop and on a GitHub runner.
+- **CI** builds once, then runs the tests, `make verify` and the reproducibility check in parallel (plus the scans weekly).
 
-## Residual risk and next steps
+## Order of work, and why
 
-- 6 libssl3 CVEs have no Debian fix yet, and 36 more nginx advisories are open. nginx 1.25.5 is end of life.
-- The `.dsc`, PGP signatures and the VEX file are unsigned. The build depends on snapshot.debian.org.
-- Next, in order: more library bumps one at a time (libc6, pcre2, gnutls, systemd libraries, liblzma, tzdata); more nginx backports; signing with cosign and an SBOM; a nightly rescan in CI; a reproducible `.deb` (`SOURCE_DATE_EPOCH`).
-- The AI-assisted pipeline I would build is in `docs/future-ai-remediation-pipeline.md`. It is a spec, not implemented.
+1. **Baseline first.** Pulled the image, pinned its digest, saved the Trivy and Grype reports. I measured before choosing anything.
+2. **Triage.** Sorted CVEs into bump, backport or out of scope. Picked ones with different techniques, a real fix, and something I can test.
+3. **Build from source.** My own script: pinned tarball hash, the baseline's configure flags, a hand-built `.deb`.
+4. **Drop-in image.** Same Debian 12.5 base, user 101, entrypoint, ports, log symlinks, the files the package ships.
+5. **Tests as I went**, not at the end (I changed to this halfway through).
+6. **Rescan and VEX.** Scanners match version strings, so a backport needs a VEX statement to disappear from a scan.
+7. **Verify, CI, reproducible builds.** Added at the end, because each one caught something (below).
+
+## What went wrong, and what I learned
+
+- **Two proofs of concept passed on the unpatched build.** One was missing a macro. Lesson: every fix test must fail on the original first.
+- **apt silently upgraded pcre2.** Lesson: pin versions and diff the package list against the baseline.
+- **A flaky test run (27 errors at once)** was my harness, not nginx: a host port taken between "find a free port" and "start the container".
+- **Docker once left my zlib fix out of the image on GitHub Actions.** The fixed library had the same size and file time as the original, and Docker compares only that. I found it by comparing the image layers of a good and a bad run. Before the fix 2 of 6 CI runs failed, after it 0 of 9. This only showed up on a second Docker setup.
+- **My scan numbers drifted** because the databases updated mid-run, and Grype never stored its database in the cache volume. Now one update per run, then frozen.
+- **The `.deb` was not reproducible**, first because of build times, then because config files carried each checkout's time. Fixed with a fixed date on every file; checked on two machines.
+
+## How I used AI agents
+
+Claude Code (Sonnet 5.5) with four agents, defined in [`.claude/agents/`](.claude/agents/):
+
+- **product-manager**: scope and acceptance criteria.
+- **packaging-expert**: build script, patches, Containerfile, Makefile.
+- **security-reviewer**: scans, triage, VEX, residual risk.
+- **test-agent**: the pytest parity suite.
+
+The flow: product-manager sets the criteria, packaging-expert builds, then test-agent and security-reviewer check it in parallel, and the builder fixes what they find. The agents never merge or push; I decide and merge. Two rules I gave them: numbers must come from a command, not a summary, and a failing test is reported, never weakened. They also got things wrong (for example "about 40 curl rows" when the real number was 104), and I caught that by counting. `docs/future-ai-remediation-pipeline.md` is the spec for how I would turn this into a repeatable pipeline; it is an idea, not implemented.
+
+## What remains, and what I would do next
+
+- **Open risk:** six libssl3 CVEs with no Debian fix; 36 more nginx advisories (I fixed two); nginx 1.25.5 is end of life, so the real fix is a supported release, which the brief rules out.
+- **Unsigned:** the source package, the PGP signatures and `vex.json`. The build depends on `snapshot.debian.org`.
+- **Next, in order:** more library bumps one at a time (libc6, pcre2, gnutls, systemd libraries, liblzma, tzdata); more nginx backports; sign the image and VEX with cosign and add an SBOM; a nightly rescan that opens an issue; try another CPU architecture for the reproducible build.
