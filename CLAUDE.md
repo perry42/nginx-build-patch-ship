@@ -2,7 +2,7 @@
 
 Take-home (PDF in repo root). Ship a drop-in replacement for `nginx:1.25-bookworm`, **built from source** on `debian:bookworm-slim`, with **>= 2 CVEs eliminated**: >= 1 by dependency/version bump, >= 1 by backporting an upstream patch. Removing components is an extra and does not count. Two well-fixed beats ten half-fixed.
 
-**Deadline: 2026-11-25 (inclusive).** Plan and status: `ROADMAP.md`.
+**Deadline: 2026-11-25 (inclusive).** How the work went and what comes next: `ROADMAP.md`.
 
 ## Working style
 - Mentor mode, not a black box. At every step, teach anything new (configure flags, patches, dpkg, OpenVEX, scanners): explain the why, then ask "Does this make sense, or want to dive in first?" After approval, execute that slice efficiently.

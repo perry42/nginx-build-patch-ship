@@ -7,7 +7,6 @@ study_guide_and_dr.md
 .claude/*
 !.claude/agents/
 .claude/settings.local.json
-ROADMAP.md
 memory/
 scratch/
 notes/
