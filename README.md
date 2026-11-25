@@ -28,6 +28,7 @@ The last line reads `VERIFY: PASS (n/n checks)` or `VERIFY: FAIL (names of the f
 | `vex.json` | OpenVEX statements for the three backports. |
 | `build/pkgfiles/`, `image/rootfs/` | Config files, welcome page and entrypoint scripts copied from the baseline image (same checksums). |
 | `Containerfile` | Two stages: build the `.deb`, then install it on the same Debian the baseline uses. |
+| `.claude/agents/` | The four agent definitions used for this project (see AI tools used). |
 | `test/` | pytest + requests suite that boots both images and compares them. |
 | `Makefile` | One entry point for everything below. |
 | Git history | `git log --first-parent --oneline main` lists the work in order, one merge per milestone (baseline, build, layout, zlib backport, VEX, `make verify`, CI, reproducible builds). I kept the real history, including early stacked branches, and did not rewrite it. |
@@ -248,9 +249,9 @@ Same logic: they are separate packages in the official image, not part of the ng
 
 ## AI tools used
 
-I used Claude Code (Sonnet 5.5) with four project agents defined in `.claude/agents/`: a product-manager (scope and acceptance criteria), a packaging-expert (build details), a security-reviewer (scan triage and review) and a test-agent (the pytest suite). The main assistant did the hands-on build with me, step by step, and the reviewers checked each step.
+I used Claude Code (Sonnet 5.5) with a set of four agents that I designed and reuse across my projects. At the start of each project, Claude helps me adapt them to it. For this one they are in [`.claude/agents/`](.claude/agents/): [product-manager](.claude/agents/product-manager.md) (scope and acceptance criteria), [packaging-expert](.claude/agents/packaging-expert.md) (build details), [security-reviewer](.claude/agents/security-reviewer.md) (scan triage and review) and [test-agent](.claude/agents/test-agent.md) (the pytest suite). The flow: the product-manager sets the criteria, the packaging-expert builds, the test-agent and security-reviewer check in parallel, and the builder fixes what they find. The agents never merge or push; I decide. The main assistant did the hands-on build with me, step by step, and the reviewers checked each step.
 
-I also used Gemini in Antigravity as a separate, read-only study and review companion. It did not touch the repo. I used it to go through the work by hand, ask questions in areas I did not know, and learn them (for example how Debian handles security fixes in an older release). It is where I checked my own understanding of the README before relying on it.
+I also used Gemini in Antigravity as a study and review companion; it did not touch the repo. Before I started, I used it to learn how a project like this is approached (packaging, backports, scanners, VEX), and near the end to go through my work by hand and check my understanding. The practical planning and the build were done with Claude Code.
 
 Where it helped:
 - test-agent found the reliable crash trigger for CVE-2026-9256 and the missing `maintainer` label.
