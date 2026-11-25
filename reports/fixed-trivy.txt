@@ -4,7 +4,7 @@ Report Summary
 ┌───────────────────────────────────────┬────────┬─────────────────┐
 │                Target                 │  Type  │ Vulnerabilities │
 ├───────────────────────────────────────┼────────┼─────────────────┤
-│ echo/nginx:1.25-patched (debian 12.5) │ debian │       370       │
+│ echo/nginx:1.25-patched (debian 12.5) │ debian │       365       │
 └───────────────────────────────────────┴────────┴─────────────────┘
 Legend:
 - '-': Not scanned
@@ -13,7 +13,7 @@ Legend:
 
 echo/nginx:1.25-patched (debian 12.5)
 =====================================
-Total: 370 (UNKNOWN: 24, LOW: 111, MEDIUM: 166, HIGH: 63, CRITICAL: 6)
+Total: 365 (UNKNOWN: 25, LOW: 109, MEDIUM: 164, HIGH: 61, CRITICAL: 6)
 
 ┌────────────────────┬─────────────────────┬──────────┬──────────────┬───────────────────────┬────────────────────────┬──────────────────────────────────────────────────────────────┐
 │      Library       │    Vulnerability    │ Severity │    Status    │   Installed Version   │     Fixed Version      │                            Title                             │
@@ -882,17 +882,9 @@ Total: 370 (UNKNOWN: 24, LOW: 111, MEDIUM: 166, HIGH: 63, CRITICAL: 6)
 │                    │                     │          │              │                       │                        │ when processing 256-byte usernames                           │
 │                    │                     │          │              │                       │                        │ https://avd.aquasec.com/nvd/cve-2025-14104                   │
 ├────────────────────┼─────────────────────┼──────────┤              ├───────────────────────┼────────────────────────┼──────────────────────────────────────────────────────────────┤
-│ libssl3            │ CVE-2026-107494     │ HIGH     │              │ 3.0.22-1~deb12u2      │                        │ openssl: OpenSSL: Denial of Service via unbounded QUIC frame │
-│                    │                     │          │              │                       │                        │ queueing                                                     │
-│                    │                     │          │              │                       │                        │ https://avd.aquasec.com/nvd/cve-2026-107494                  │
-│                    ├─────────────────────┼──────────┤              │                       ├────────────────────────┼──────────────────────────────────────────────────────────────┤
-│                    │ CVE-2026-107496     │ MEDIUM   │              │                       │                        │ openssl: openssl: Denial of Service via crafted EC           │
+│ libssl3            │ CVE-2026-107496     │ MEDIUM   │              │ 3.0.22-1~deb12u2      │                        │ openssl: openssl: Denial of Service via crafted EC           │
 │                    │                     │          │              │                       │                        │ certificate in CMS encryption...                             │
 │                    │                     │          │              │                       │                        │ https://avd.aquasec.com/nvd/cve-2026-107496                  │
-│                    ├─────────────────────┤          │              │                       ├────────────────────────┼──────────────────────────────────────────────────────────────┤
-│                    │ CVE-2026-121482     │          │              │                       │                        │ openssl: openssl: Denial of Service via crafted CMS or       │
-│                    │                     │          │              │                       │                        │ PKCS#7 SignedData message...                                 │
-│                    │                     │          │              │                       │                        │ https://avd.aquasec.com/nvd/cve-2026-121482                  │
 │                    ├─────────────────────┤          │              │                       ├────────────────────────┼──────────────────────────────────────────────────────────────┤
 │                    │ CVE-2026-84786      │          │              │                       │                        │ openssl: OpenSSL: Denial of Service via NULL pointer         │
 │                    │                     │          │              │                       │                        │ dereference during DANE TLSA...                              │
@@ -993,10 +985,6 @@ Total: 370 (UNKNOWN: 24, LOW: 111, MEDIUM: 166, HIGH: 63, CRITICAL: 6)
 │                    │ CVE-2023-31439      │          │              │                       │                        │ An issue was discovered in systemd 253. An attacker can      │
 │                    │                     │          │              │                       │                        │ modify the...                                                │
 │                    │                     │          │              │                       │                        │ https://avd.aquasec.com/nvd/cve-2023-31439                   │
-│                    ├─────────────────────┤          │              │                       ├────────────────────────┼──────────────────────────────────────────────────────────────┤
-│                    │ CVE-2026-40228      │          │              │                       │                        │ systemd: systemd-journald: Unintended output to user         │
-│                    │                     │          │              │                       │                        │ terminals via logger command                                 │
-│                    │                     │          │              │                       │                        │ https://avd.aquasec.com/nvd/cve-2026-40228                   │
 ├────────────────────┼─────────────────────┼──────────┼──────────────┼───────────────────────┼────────────────────────┼──────────────────────────────────────────────────────────────┤
 │ libtasn1-6         │ CVE-2024-12133      │ MEDIUM   │ fixed        │ 4.19.0-2              │ 4.19.0-2+deb12u1       │ libtasn1: Inefficient DER Decoding in libtasn1 Leading to    │
 │                    │                     │          │              │                       │                        │ Potential Remote DoS                                         │
@@ -1066,10 +1054,6 @@ Total: 370 (UNKNOWN: 24, LOW: 111, MEDIUM: 166, HIGH: 63, CRITICAL: 6)
 │                    │ CVE-2023-31439      │          │              │                       │                        │ An issue was discovered in systemd 253. An attacker can      │
 │                    │                     │          │              │                       │                        │ modify the...                                                │
 │                    │                     │          │              │                       │                        │ https://avd.aquasec.com/nvd/cve-2023-31439                   │
-│                    ├─────────────────────┤          │              │                       ├────────────────────────┼──────────────────────────────────────────────────────────────┤
-│                    │ CVE-2026-40228      │          │              │                       │                        │ systemd: systemd-journald: Unintended output to user         │
-│                    │                     │          │              │                       │                        │ terminals via logger command                                 │
-│                    │                     │          │              │                       │                        │ https://avd.aquasec.com/nvd/cve-2026-40228                   │
 ├────────────────────┼─────────────────────┼──────────┤              ├───────────────────────┼────────────────────────┼──────────────────────────────────────────────────────────────┤
 │ libuuid1           │ CVE-2026-53613      │ HIGH     │              │ 2.38.1-5+deb12u1      │                        │ util-linux: TOCTOU in the mount program via ancestor         │
 │                    │                     │          │              │                       │                        │ directory swap on target...                                  │
@@ -1102,6 +1086,10 @@ Total: 370 (UNKNOWN: 24, LOW: 111, MEDIUM: 166, HIGH: 63, CRITICAL: 6)
 │                    │ CVE-2025-14104      │          │              │                       │                        │ util-linux: util-linux: Heap buffer overread in setpwnam()   │
 │                    │                     │          │              │                       │                        │ when processing 256-byte usernames                           │
 │                    │                     │          │              │                       │                        │ https://avd.aquasec.com/nvd/cve-2025-14104                   │
+├────────────────────┼─────────────────────┼──────────┤              ├───────────────────────┼────────────────────────┼──────────────────────────────────────────────────────────────┤
+│ libzstd1           │ CVE-2026-124851     │ UNKNOWN  │              │ 1.5.4+dfsg2-5         │                        │ An information disclosure vulnerability in Zstandard         │
+│                    │                     │          │              │                       │                        │ versions 1.5.1 th ...                                        │
+│                    │                     │          │              │                       │                        │ https://avd.aquasec.com/nvd/cve-2026-124851                  │
 ├────────────────────┼─────────────────────┼──────────┼──────────────┼───────────────────────┼────────────────────────┼──────────────────────────────────────────────────────────────┤
 │ login              │ CVE-2023-4641       │ MEDIUM   │ fixed        │ 1:4.13+dfsg1-1+b1     │ 1:4.13+dfsg1-1+deb12u1 │ shadow-utils: possible password leak during passwd(1) change │
 │                    │                     │          │              │                       │                        │ https://avd.aquasec.com/nvd/cve-2023-4641                    │
@@ -1122,9 +1110,8 @@ Total: 370 (UNKNOWN: 24, LOW: 111, MEDIUM: 166, HIGH: 63, CRITICAL: 6)
 │                    │                     │          │              │                       │                        │ https://security-tracker.debian.org/tracker/TEMP-0628843-DB- │
 │                    │                     │          │              │                       │                        │ AD28                                                         │
 │                    ├─────────────────────┼──────────┤              │                       ├────────────────────────┼──────────────────────────────────────────────────────────────┤
-│                    │ TEMP-1154946-473926 │ UNKNOWN  │              │                       │                        │ [shadow: Security fix for newgidmap]                         │
-│                    │                     │          │              │                       │                        │ https://security-tracker.debian.org/tracker/TEMP-1154946-47- │
-│                    │                     │          │              │                       │                        │ 3926                                                         │
+│                    │ CVE-2026-135901     │ UNKNOWN  │              │                       │                        │ [shadow: Security fix for newgidmap]                         │
+│                    │                     │          │              │                       │                        │ https://avd.aquasec.com/nvd/cve-2026-135901                  │
 ├────────────────────┼─────────────────────┼──────────┤              ├───────────────────────┼────────────────────────┼──────────────────────────────────────────────────────────────┤
 │ mount              │ CVE-2026-53613      │ HIGH     │              │ 2.38.1-5+deb12u1      │                        │ util-linux: TOCTOU in the mount program via ancestor         │
 │                    │                     │          │              │                       │                        │ directory swap on target...                                  │
@@ -1186,17 +1173,9 @@ Total: 370 (UNKNOWN: 24, LOW: 111, MEDIUM: 166, HIGH: 63, CRITICAL: 6)
 │                    │                     │          │              │                       │                        │ earlier, uses ......                                         │
 │                    │                     │          │              │                       │                        │ https://avd.aquasec.com/nvd/cve-2013-0337                    │
 ├────────────────────┼─────────────────────┼──────────┤              ├───────────────────────┼────────────────────────┼──────────────────────────────────────────────────────────────┤
-│ openssl            │ CVE-2026-107494     │ HIGH     │              │ 3.0.22-1~deb12u2      │                        │ openssl: OpenSSL: Denial of Service via unbounded QUIC frame │
-│                    │                     │          │              │                       │                        │ queueing                                                     │
-│                    │                     │          │              │                       │                        │ https://avd.aquasec.com/nvd/cve-2026-107494                  │
-│                    ├─────────────────────┼──────────┤              │                       ├────────────────────────┼──────────────────────────────────────────────────────────────┤
-│                    │ CVE-2026-107496     │ MEDIUM   │              │                       │                        │ openssl: openssl: Denial of Service via crafted EC           │
+│ openssl            │ CVE-2026-107496     │ MEDIUM   │              │ 3.0.22-1~deb12u2      │                        │ openssl: openssl: Denial of Service via crafted EC           │
 │                    │                     │          │              │                       │                        │ certificate in CMS encryption...                             │
 │                    │                     │          │              │                       │                        │ https://avd.aquasec.com/nvd/cve-2026-107496                  │
-│                    ├─────────────────────┤          │              │                       ├────────────────────────┼──────────────────────────────────────────────────────────────┤
-│                    │ CVE-2026-121482     │          │              │                       │                        │ openssl: openssl: Denial of Service via crafted CMS or       │
-│                    │                     │          │              │                       │                        │ PKCS#7 SignedData message...                                 │
-│                    │                     │          │              │                       │                        │ https://avd.aquasec.com/nvd/cve-2026-121482                  │
 │                    ├─────────────────────┤          │              │                       ├────────────────────────┼──────────────────────────────────────────────────────────────┤
 │                    │ CVE-2026-84786      │          │              │                       │                        │ openssl: OpenSSL: Denial of Service via NULL pointer         │
 │                    │                     │          │              │                       │                        │ dereference during DANE TLSA...                              │
@@ -1237,9 +1216,8 @@ Total: 370 (UNKNOWN: 24, LOW: 111, MEDIUM: 166, HIGH: 63, CRITICAL: 6)
 │                    │                     │          │              │                       │                        │ https://security-tracker.debian.org/tracker/TEMP-0628843-DB- │
 │                    │                     │          │              │                       │                        │ AD28                                                         │
 │                    ├─────────────────────┼──────────┤              │                       ├────────────────────────┼──────────────────────────────────────────────────────────────┤
-│                    │ TEMP-1154946-473926 │ UNKNOWN  │              │                       │                        │ [shadow: Security fix for newgidmap]                         │
-│                    │                     │          │              │                       │                        │ https://security-tracker.debian.org/tracker/TEMP-1154946-47- │
-│                    │                     │          │              │                       │                        │ 3926                                                         │
+│                    │ CVE-2026-135901     │ UNKNOWN  │              │                       │                        │ [shadow: Security fix for newgidmap]                         │
+│                    │                     │          │              │                       │                        │ https://avd.aquasec.com/nvd/cve-2026-135901                  │
 ├────────────────────┼─────────────────────┼──────────┼──────────────┼───────────────────────┼────────────────────────┼──────────────────────────────────────────────────────────────┤
 │ perl-base          │ CVE-2026-13221      │ CRITICAL │ fixed        │ 5.36.0-7+deb12u1      │ 5.36.0-7+deb12u4       │ perl: Perl: Incorrect regular expression processing via      │
 │                    │                     │          │              │                       │                        │ large regular expressions                                    │
