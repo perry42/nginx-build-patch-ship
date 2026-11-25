@@ -22,9 +22,17 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
 env:
   PATCHED: echo/nginx:1.25-patched
   ORIGINAL: nginx:1.25-bookworm
+  # Digest from docs/baseline-facts.txt. I pull by digest and tag it locally instead of
+  # using name@digest as ORIGINAL, because `docker image ls` (Makefile, verify.py) cannot
+  # match a digest reference and would lose the original image size.
+  ORIGINAL_DIGEST: sha256:a484819eb60211f5299034ac80f6a681b06f89e65866ce91f356ed7c72af059c
 
 jobs:
   build:
@@ -55,7 +63,10 @@ jobs:
         with:
           name: image
       - run: gunzip -c image.tar.gz | docker load
-      - run: docker pull "$ORIGINAL"
+      - name: Pull the baseline by digest and tag it
+        run: |
+          docker pull "nginx@$ORIGINAL_DIGEST"
+          docker tag "nginx@$ORIGINAL_DIGEST" "$ORIGINAL"
       - run: make deps
       - name: Parity tests (original vs ours)
         run: make test
@@ -73,7 +84,10 @@ jobs:
         with:
           name: image
       - run: gunzip -c image.tar.gz | docker load
-      - run: docker pull "$ORIGINAL"
+      - name: Pull the baseline by digest and tag it
+        run: |
+          docker pull "nginx@$ORIGINAL_DIGEST"
+          docker tag "nginx@$ORIGINAL_DIGEST" "$ORIGINAL"
       - run: make deps
       - name: Fix tests (real run must pass, control run must fail)
         run: make verify
@@ -92,7 +106,10 @@ jobs:
         with:
           name: image
       - run: gunzip -c image.tar.gz | docker load
-      - run: docker pull "$ORIGINAL"
+      - name: Pull the baseline by digest and tag it
+        run: |
+          docker pull "nginx@$ORIGINAL_DIGEST"
+          docker tag "nginx@$ORIGINAL_DIGEST" "$ORIGINAL"
       - name: Scan both images, rescan with VEX, diff
         run: make scan vex diff
       - uses: actions/upload-artifact@v4
