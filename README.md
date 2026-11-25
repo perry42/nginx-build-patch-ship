@@ -250,6 +250,8 @@ Same logic: they are separate packages in the official image, not part of the ng
 
 I used Claude Code (Sonnet 5.5) with four project agents defined in `.claude/agents/`: a product-manager (scope and acceptance criteria), a packaging-expert (build details), a security-reviewer (scan triage and review) and a test-agent (the pytest suite). The main assistant did the hands-on build with me, step by step, and the reviewers checked each step.
 
+I also used Gemini in Antigravity as a separate, read-only study and review companion. It did not touch the repo. I used it to go through the work by hand, ask questions in areas I did not know, and learn them (for example how Debian handles security fixes in an older release). It is where I checked my own understanding of the README before relying on it.
+
 Where it helped:
 - test-agent found the reliable crash trigger for CVE-2026-9256 and the missing `maintainer` label.
 - security-reviewer verified that the patches are byte-identical to upstream, and recomputed my scan numbers from the raw JSON.
