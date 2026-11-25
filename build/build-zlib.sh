@@ -35,6 +35,14 @@ for p in "$HERE"/patches/zlib/*.patch; do
     patch -p1 --fuzz=0 --no-backup-if-mismatch < "$p"
 done
 
+# Debian clamps file times in the .deb to the changelog date (SOURCE_DATE_EPOCH).
+# Our rebuilt libz.so.1.2.13 has the same size as the original and, with the same
+# changelog, the same time. Docker decides what goes into an image layer by
+# comparing size and time, so it can drop the changed library from the layer and
+# ship the old one (this happened once on GitHub Actions). A fixed, later epoch
+# makes every file we rebuild differ in time from the baseline's.
+export SOURCE_DATE_EPOCH=1795564800   # 2026-11-25 00:00:00 UTC, the day of this backport
+
 echo "==> zlib: build zlib1g .deb with dpkg-buildpackage"
 dpkg-buildpackage -b -uc -us > "$WORK/zlib-build.log" 2>&1
 cp ../zlib1g_*_amd64.deb "$OUT/"
