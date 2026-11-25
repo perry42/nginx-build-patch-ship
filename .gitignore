@@ -68,3 +68,4 @@ desktop.ini
 scans/*.err
 NEXT_SESSION.md
 reports/cve-diff.generated.txt
+reports/vex-diff.generated.txt
