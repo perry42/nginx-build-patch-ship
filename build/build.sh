@@ -31,7 +31,9 @@ for p in "$HERE"/patches/*.patch; do
     patch -p1 --fuzz=0 --no-backup-if-mismatch < "$p"
 done
 
-echo "==> configure (flags copied from nginx:1.25-bookworm, docs/baseline-facts.txt)"
+echo "==> configure helper (flags copied from nginx:1.25-bookworm, docs/baseline-facts.txt)"
+# Same flags for both binaries; the debug one adds --with-debug, like the official image.
+configure_nginx() {
 ./configure \
     --prefix=/etc/nginx \
     --sbin-path=/usr/sbin/nginx \
@@ -61,9 +63,20 @@ echo "==> configure (flags copied from nginx:1.25-bookworm, docs/baseline-facts.
     --with-stream_ssl_module --with-stream_ssl_preread_module \
     --with-cc-opt="-g -O2 -ffile-prefix-map=${WORK}/nginx-${NGINX_VERSION}=. -fstack-protector-strong -Wformat -Werror=format-security -Wp,-D_FORTIFY_SOURCE=2 -fPIC" \
     --with-ld-opt="-Wl,-z,relro -Wl,-z,now -Wl,--as-needed -pie" \
-    > "$WORK/configure.log"
+    "$@"
+}
 
-echo "==> compile"
+echo "==> debug binary (nginx-debug, built from a copy of the patched tree)"
+cd "$WORK"
+cp -a "nginx-${NGINX_VERSION}" "nginx-${NGINX_VERSION}-debug"
+cd "nginx-${NGINX_VERSION}-debug"
+configure_nginx --with-debug > "$WORK/configure-debug.log"
+make -j"$(nproc)" > "$WORK/make-debug.log"
+cp objs/nginx "$WORK/nginx-debug"
+
+echo "==> configure and compile the release binary"
+cd "$WORK/nginx-${NGINX_VERSION}"
+configure_nginx > "$WORK/configure.log"
 make -j"$(nproc)" > "$WORK/make.log"
 
 echo "==> stage into $PKGROOT"
@@ -80,12 +93,20 @@ rm -rf "$PKGROOT/etc/nginx/html" "$PKGROOT"/etc/nginx/*.default \
        "$PKGROOT/etc/nginx/koi-win" "$PKGROOT/etc/nginx/win-utf"
 cp -a "$HERE/pkgfiles/." "$PKGROOT/"
 # Files copied from a Windows checkout can arrive executable; the baseline is 0644.
-find "$PKGROOT/etc/nginx" "$PKGROOT/usr/share/nginx" -type f -exec chmod 0644 {} +
+find "$PKGROOT/etc/nginx" "$PKGROOT/usr/share/nginx" "$PKGROOT/etc/default" \
+     "$PKGROOT/etc/logrotate.d" "$PKGROOT/lib/systemd" -type f -exec chmod 0644 {} +
+chmod 0755 "$PKGROOT"/etc/init.d/nginx "$PKGROOT"/etc/init.d/nginx-debug
+install -m 0755 "$WORK/nginx-debug" "$PKGROOT/usr/sbin/nginx-debug"
 ln -s /usr/lib/nginx/modules "$PKGROOT/etc/nginx/modules"
 # Register the config files as dpkg conffiles, like the official package does.
 # docker-entrypoint.d/10-listen-on-ipv6-by-default.sh compares default.conf with
 # the checksum dpkg recorded here; without this the IPv6 listen is never enabled.
 cat > "$PKGROOT/DEBIAN/conffiles" <<EOF
+/etc/default/nginx
+/etc/default/nginx-debug
+/etc/init.d/nginx
+/etc/init.d/nginx-debug
+/etc/logrotate.d/nginx
 /etc/nginx/conf.d/default.conf
 /etc/nginx/fastcgi_params
 /etc/nginx/mime.types
@@ -94,12 +115,12 @@ cat > "$PKGROOT/DEBIAN/conffiles" <<EOF
 /etc/nginx/uwsgi_params
 EOF
 # Drop debug symbols (the baseline binary is stripped too; keeps size honest).
-strip --strip-unneeded "$PKGROOT/usr/sbin/nginx"
+strip --strip-unneeded "$PKGROOT/usr/sbin/nginx" "$PKGROOT/usr/sbin/nginx-debug"
 
 echo "==> dependencies from the real binary (dpkg-shlibdeps)"
 mkdir -p "$WORK/debian" && : > "$WORK/debian/control"
 cd "$WORK"
-DEPENDS="$(dpkg-shlibdeps -O "$PKGROOT/usr/sbin/nginx" | sed 's/^shlibs:Depends=//')"
+DEPENDS="$(dpkg-shlibdeps -O "$PKGROOT/usr/sbin/nginx" "$PKGROOT/usr/sbin/nginx-debug" | sed 's/^shlibs:Depends=//')"
 DEPENDS="$(printf '%s' "$DEPENDS" | sed "s/libssl3 ([^)]*)/libssl3 (>= ${LIBSSL3_MIN})/")"
 echo "    Depends: $DEPENDS"
 
@@ -122,4 +143,7 @@ EOF
 
 echo "==> build .deb"
 dpkg-deb --root-owner-group -b "$PKGROOT" "$OUT/nginx_${NGINX_VERSION}-${REVISION}_amd64.deb"
+
+# Second package: Debian's zlib1g rebuilt with the CVE-2026-27171 backport.
+WORK="$WORK" OUT="$OUT" sh "$HERE/build-zlib.sh"
 ls -l "$OUT"

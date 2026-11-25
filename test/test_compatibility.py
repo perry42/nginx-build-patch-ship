@@ -23,7 +23,14 @@ docker inspect Config; file layout/mode/owner/content; log symlinks, `id nginx`;
 graceful `docker stop` (exit 0, < 10 s). Its documented diffs (PKG_RELEASE,
 missing NJS_* env, missing maintainer label, ignored ETag/Last-Modified on
 static files) are listed in that module's docstring.
-Not covered: HTTP/2, proxying, gzip, reload/signal handling beyond SIGQUIT stop,
+test_image.py also covers: `nginx -V` configure-arguments parity for nginx and
+nginx-debug, `nginx -t` on both binaries, nginx-debug serving `/`, dpkg conffiles
+and the `dpkg -L` file set, and that ours has no files the baseline lacks.
+test_zlib.py covers gzip and gzip_static output (including compressed bytes, and
+no compression without Accept-Encoding), the CVE-2026-27171 PoC and the zlib1g
+version/library check. Liveness after the crash PoC and after every malformed
+request is also checked.
+Not covered: HTTP/2, proxying, reload/signal handling beyond SIGQUIT stop,
 runtime access/error log content.
 
 Intended differences on malformed requests: none; both must match exactly.

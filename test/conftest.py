@@ -19,8 +19,36 @@ def _free_port():
 
 
 def _docker(*args, check=True):
-    return subprocess.run(["docker", *args], capture_output=True, text=True, check=check,
-                          env={**os.environ, "MSYS_NO_PATHCONV": "1"})
+    r = subprocess.run(["docker", *args], capture_output=True, text=True,
+                       env={**os.environ, "MSYS_NO_PATHCONV": "1"})
+    if check and r.returncode != 0:
+        raise RuntimeError(f"docker {' '.join(args[:2])} failed ({r.returncode}): {r.stderr}{r.stdout}")
+    return r
+
+
+_used_ports = set()
+
+
+def _unique_port():
+    """Free host port, never equal to one already handed out in this session."""
+    for _ in range(50):
+        p = _free_port()
+        if p not in _used_ports:
+            _used_ports.add(p)
+            return p
+    raise RuntimeError("no free port")
+
+
+@pytest.fixture(scope="session", autouse=True)
+def _sweep_containers():
+    """Remove leftover echo-test-* containers (killed earlier runs) at start and end."""
+    def sweep():
+        ids = _docker("ps", "-aq", "--filter", "name=echo-test-", check=False).stdout.split()
+        if ids:
+            _docker("rm", "-f", *ids, check=False)
+    sweep()
+    yield
+    sweep()
 
 
 class Server:
@@ -28,26 +56,35 @@ class Server:
 
     def __init__(self, image, conf, tag, extra_ports=(), files=()):
         """extra_ports: container ports to publish too (host ports in self.ports).
-        files: (host_path, container_path) pairs copied in before start."""
+        files: (host_path, container_path) pairs copied in before start.
+        Startup is retried up to 3 times with fresh ports and a fresh container name
+        (a host port can be taken between probing and `docker start`)."""
         self.image = image
-        self.name = f"echo-test-{tag}-{uuid.uuid4().hex[:8]}"
-        self.port = _free_port()
-        self.base = f"http://127.0.0.1:{self.port}"
-        self.ports = {80: self.port}
-        args = ["-p", f"{self.port}:80"]
-        for cp in extra_ports:
-            self.ports[cp] = _free_port()
-            args += ["-p", f"{self.ports[cp]}:{cp}"]
-        _docker("create", "--name", self.name, *args, image)
-        try:
-            _docker("cp", os.path.join(FIXTURES, conf), f"{self.name}:/etc/nginx/nginx.conf")
-            for src, dst in files:
-                _docker("cp", src, f"{self.name}:{dst}")
-            _docker("start", self.name)
-            self._wait()
-        except BaseException:
-            self.stop()
-            raise
+        last = None
+        for attempt in range(3):
+            self.name = f"echo-test-{tag}-{uuid.uuid4().hex[:8]}"
+            self.port = _unique_port()
+            self.base = f"http://127.0.0.1:{self.port}"
+            self.ports = {80: self.port}
+            args = ["-p", f"{self.port}:80"]
+            for cp in extra_ports:
+                self.ports[cp] = _unique_port()
+                args += ["-p", f"{self.ports[cp]}:{cp}"]
+            try:
+                _docker("create", "--name", self.name, *args, image)
+                _docker("cp", os.path.join(FIXTURES, conf), f"{self.name}:/etc/nginx/nginx.conf")
+                for src, dst in files:
+                    _docker("cp", src, f"{self.name}:{dst}")
+                _docker("start", self.name)
+                self._wait()
+                return
+            except BaseException as e:
+                self.stop()
+                if not isinstance(e, Exception):
+                    raise
+                last = e
+                time.sleep(1)
+        raise RuntimeError(f"{tag}: container failed to start after 3 attempts: {last}")
 
     def _wait(self):
         end = time.time() + 30

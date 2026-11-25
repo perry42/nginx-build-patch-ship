@@ -17,6 +17,7 @@ ports, entrypoint, cmd, stop signal, layout, modes, owners) must be identical.
 """
 import json
 import os
+import re
 import subprocess
 import time
 import uuid
@@ -24,7 +25,7 @@ import uuid
 import pytest
 import requests
 
-from conftest import ORIGINAL, PATCHED, FIXTURES, _docker, _free_port, _need_patched  # noqa: F401
+from conftest import ORIGINAL, PATCHED, FIXTURES, _docker, _unique_port, _need_patched  # noqa: F401
 
 STATIC_IGNORED = {"date", "etag", "last-modified"}
 ENTRYPOINT_PATHS = ["/etc/nginx", "/usr/share/nginx/html", "/docker-entrypoint.d",
@@ -34,26 +35,33 @@ ENTRYPOINT_PATHS = ["/etc/nginx", "/usr/share/nginx/html", "/docker-entrypoint.d
 class Real:
     """Container started with the image's own config and entrypoint."""
 
-    def __init__(self, image, tag, files=(), env=(), extra_ports=()):
+    def __init__(self, image, tag, files=(), env=(), extra_ports=(), cmd=()):
         self.image = image
-        self.name = f"echo-test-{tag}-{uuid.uuid4().hex[:8]}"
-        self.port = _free_port()
-        self.ports = {80: self.port}
-        args = ["-p", f"{self.port}:80"]
-        for cp in extra_ports:
-            self.ports[cp] = _free_port()
-            args += ["-p", f"{self.ports[cp]}:{cp}"]
-        for e in env:
-            args += ["-e", e]
-        _docker("create", "--name", self.name, *args, image)
-        try:
-            for src, dst in files:
-                _docker("cp", src, f"{self.name}:{dst}")
-            _docker("start", self.name)
-            self._wait()
-        except BaseException:
-            self.stop()
-            raise
+        last = None
+        for attempt in range(3):  # fresh ports and name on each retry (port race)
+            self.name = f"echo-test-{tag}-{uuid.uuid4().hex[:8]}"
+            self.port = _unique_port()
+            self.ports = {80: self.port}
+            args = ["-p", f"{self.port}:80"]
+            for cp in extra_ports:
+                self.ports[cp] = _unique_port()
+                args += ["-p", f"{self.ports[cp]}:{cp}"]
+            for e in env:
+                args += ["-e", e]
+            try:
+                _docker("create", "--name", self.name, *args, image, *cmd)
+                for src, dst in files:
+                    _docker("cp", src, f"{self.name}:{dst}")
+                _docker("start", self.name)
+                self._wait()
+                return
+            except BaseException as e:
+                self.stop()
+                if not isinstance(e, Exception):
+                    raise
+                last = e
+                time.sleep(1)
+        raise RuntimeError(f"{tag}: container failed to start after 3 attempts: {last}")
 
     def url(self, path="/", port=80):
         return f"http://127.0.0.1:{self.ports[port]}{path}"
@@ -251,3 +259,155 @@ def test_graceful_stop(_need_patched, which):
         assert took < 10, f"stop took {took:.1f}s (SIGKILL fallback?)"
     finally:
         s.stop()
+
+
+# 8. extra package files (nginx-debug, init, logrotate, systemd) -------------
+EXTRA_FILES = ["/usr/sbin/nginx-debug", "/etc/default/nginx", "/etc/default/nginx-debug",
+               "/etc/init.d/nginx", "/etc/init.d/nginx-debug", "/etc/logrotate.d/nginx",
+               "/lib/systemd/system/nginx.service", "/lib/systemd/system/nginx-debug.service"]
+
+
+def test_extra_files_mode_owner_md5(_need_patched):
+    script = "for f in " + " ".join(EXTRA_FILES) + r"""; do
+  stat -L -c '%n|%a|%u|%g' "$f" || echo "$f|MISSING"
+  case "$f" in */sbin/*) ;; *) md5sum "$f" 2>&1;; esac; done"""
+    # The nginx-debug binary is compiled from source, so its md5 cannot match the
+    # baseline's binary; mode/uid/gid are compared, content is covered by -V and serving tests.
+    a, b = _sh(ORIGINAL, script), _sh(PATCHED, script)
+    assert "MISSING" not in a, a
+    assert a == b, "extra files differ:\n" + "\n".join(sorted(set(a.splitlines()) ^ set(b.splitlines())))
+
+
+def test_dpkg_conffiles_identical(_need_patched):
+    script = "dpkg-query -W -f='${Conffiles}' nginx | sed 's/^ //' | sort"
+    a, b = _sh(ORIGINAL, script), _sh(PATCHED, script)
+    assert len(a.splitlines()) >= 5, a
+    for f in EXTRA_FILES[1:6]:
+        assert f in a, f"{f} not a conffile in original"
+    assert a == b, "conffiles differ:\n" + "\n".join(sorted(set(a.splitlines()) ^ set(b.splitlines())))
+
+
+def _configure_args(image, binary):
+    out = _docker("run", "--rm", "--entrypoint", binary, image, "-V").stderr
+    m = re.search(r"configure arguments: (.*)", out)
+    assert m, out
+    return out, m.group(1)
+
+
+def test_nginx_debug_version_and_configure_args(_need_patched):
+    for img in (ORIGINAL, PATCHED):
+        out_n, args_n = _configure_args(img, "nginx")
+        out_d, args_d = _configure_args(img, "nginx-debug")
+        assert "--with-debug" in out_d, (img, out_d)
+        assert out_d.splitlines()[0] == out_n.splitlines()[0], img  # version line
+        strip = lambda x: re.sub(r"\s*-ffile-prefix-map=\S+", "", x)
+        # nginx-debug = nginx args + --with-debug (same as upstream packaging)
+        a = strip(args_d).replace(" --with-debug", "")
+        assert a == strip(args_n), f"{img}\nnginx: {strip(args_n)}\ndebug-stripped: {a}"
+        assert "--with-debug" not in args_n, img
+
+
+def test_nginx_debug_configure_args_parity(_need_patched):
+    strip = lambda x: re.sub(r"\s*-ffile-prefix-map=\S+", "", x)
+    for binary in ("nginx", "nginx-debug"):
+        a, b = (strip(_configure_args(i, binary)[1]) for i in (ORIGINAL, PATCHED))
+        assert a == b, f"{binary}\norig:    {a}\npatched: {b}"
+
+
+@pytest.fixture(scope="module")
+def debug_pair(_need_patched):
+    servers = []
+    try:
+        for role, img in (("orig", ORIGINAL), ("patched", PATCHED)):
+            servers.append(Real(img, f"dbg-{role}", cmd=("nginx-debug", "-g", "daemon off;")))
+        yield tuple(servers)
+    finally:
+        for s in servers:
+            s.stop()
+
+
+def test_nginx_debug_serves_root(debug_pair):
+    a, b = (_norm(requests.get(s.url("/"), timeout=5)) for s in debug_pair)
+    assert a == b, f"orig {a}\npatched {b}"
+    assert a[0] == 200 and b"Welcome to nginx!" in a[2]
+    for s in debug_pair:
+        ps = _docker("exec", s.name, "sh", "-c", "cat /proc/1/cmdline | tr '\\0' ' '").stdout
+        assert "nginx-debug" in ps, ps
+
+
+@pytest.mark.parametrize("binary", ["nginx", "nginx-debug"])
+def test_config_test_succeeds(_need_patched, binary):
+    for img in (ORIGINAL, PATCHED):
+        r = _docker("run", "--rm", "--entrypoint", binary, img, "-t", check=False)
+        assert r.returncode == 0, (img, binary, r.stderr)
+        assert "test is successful" in r.stderr, (img, r.stderr)
+
+
+PKG_SCRIPT = r"""dpkg -L nginx | grep -v -e '^/usr/share/doc' -e '^/usr/share/man' | sort -u |
+while read -r f; do
+  if [ -L "$f" ] || [ -f "$f" ]; then stat -c '%n|%F|%a|%u|%g|%N' "$f"; fi
+done | sort"""
+
+
+def test_package_file_set_identical(_need_patched):
+    a, b = _sh(ORIGINAL, PKG_SCRIPT), _sh(PATCHED, PKG_SCRIPT)
+    names = lambda x: {ln.split("|")[0] for ln in x.splitlines()}
+    assert len(a.splitlines()) >= 15, a
+    assert names(a) == names(b), "package file set differs:\n" + "\n".join(
+        sorted(names(a) ^ names(b)))
+    assert a == b, "package file type/mode/owner/link differs:\n" + "\n".join(
+        sorted(set(a.splitlines()) ^ set(b.splitlines())))
+
+
+def test_no_extra_files_in_ours(_need_patched):
+    script = r"find /etc /usr/sbin /usr/lib/nginx /lib/systemd \( -type f -o -type l \) | sort"
+    a, b = _sh(ORIGINAL, script), _sh(PATCHED, script)
+    extra = sorted(set(b.splitlines()) - set(a.splitlines()))
+    missing = sorted(set(a.splitlines()) - set(b.splitlines()))
+    print("files only in ours:", extra, "\nfiles only in baseline:", missing)
+    assert not extra, f"ours has files the baseline lacks: {extra}"
+
+
+# 9. installed package set (guards the extra 20261123 security snapshot) ----------
+# Packages the baseline has and ours deliberately lacks (56): curl and its
+# dependency chain, and the four dynamic modules (geoip, image-filter, njs, xslt)
+# with their libraries (fonts, libgd3, libxml2, libxslt, libgeoip, image codecs...).
+# Built from a real `dpkg-query` diff of the two images; see README "Intended differences".
+ALLOWED_MISSING = sorted("""
+curl fontconfig-config fonts-dejavu-core libabsl20220623 libaom3 libavif15 libbrotli1
+libbsd0 libcurl4 libdav1d6 libde265-0 libdeflate0 libedit2 libexpat1 libfontconfig1
+libfreetype6 libgav1-1 libgd3 libgeoip1 libgssapi-krb5-2 libheif1 libicu72 libjbig0
+libjpeg62-turbo libk5crypto3 libkeyutils1 libkrb5-3 libkrb5support0 libldap-2.5-0
+liblerc4 libnghttp2-14 libnuma1 libpng16-16 libpsl5 librav1e0 librtmp1 libsasl2-2
+libsasl2-modules-db libssh2-1 libsvtav1enc1 libtiff6 libwebp7 libx11-6 libx11-data
+libx265-199 libxau6 libxcb1 libxdmcp6 libxml2 libxpm4 libxslt1.1 libyuv0
+nginx-module-geoip nginx-module-image-filter nginx-module-njs nginx-module-xslt
+""".split())
+ALLOWED_VERSION_DIFF = {
+    "libssl3": ("3.0.11-1~deb12u2", "3.0.22-1~deb12u2"),
+    "openssl": ("3.0.11-1~deb12u2", "3.0.22-1~deb12u2"),
+    "nginx": ("1.25.5-1~bookworm", "1.25.5-1~echo1"),
+}
+
+
+def _packages(image):
+    out = _sh(image, "dpkg-query -W -f='${Package} ${Version}\n'")
+    return dict(ln.split(" ", 1) for ln in out.splitlines() if ln.strip())
+
+
+@pytest.mark.expected_diff
+def test_installed_package_set(_need_patched):
+    """Only libssl3/openssl/nginx differ in version, ours has nothing extra, and the
+    missing packages are exactly ALLOWED_MISSING. (zlib1g: same version, different
+    content, is covered by test_zlib.py, not here.)"""
+    o, p = _packages(ORIGINAL), _packages(PATCHED)
+    changed = {k: (o[k], p[k]) for k in o.keys() & p.keys() if o[k] != p[k]}
+    extra = sorted(set(p) - set(o))
+    missing = sorted(set(o) - set(p))
+    diff = ("full diff\n  version changes: %s\n  only in ours: %s\n  only in baseline: %s\n"
+            "  unexpected missing: %s\n  allowed but present/not missing: %s"
+            % (changed, extra, missing, sorted(set(missing) - set(ALLOWED_MISSING)),
+               sorted(set(ALLOWED_MISSING) - set(missing))))
+    assert changed == ALLOWED_VERSION_DIFF, diff
+    assert not extra, diff
+    assert missing == ALLOWED_MISSING, diff

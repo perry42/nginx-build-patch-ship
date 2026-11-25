@@ -51,6 +51,11 @@ RUN echo 'deb [check-valid-until=no] http://snapshot.debian.org/archive/debian-s
  && mv /root/debian.sources.orig /etc/apt/sources.list.d/debian.sources \
  && rm -rf /var/lib/apt/lists/*
 
+# 3b) Backport: swap in zlib1g rebuilt from Debian's source with the CVE-2026-27171
+#     patch. Same version string as the stock package, so dpkg reinstalls it in place.
+COPY --from=builder /out/zlib1g_*_amd64.deb /tmp/zlib1g.deb
+RUN dpkg -i /tmp/zlib1g.deb && rm -f /tmp/zlib1g.deb
+
 # 4) Entrypoint and its scripts, vendored from the baseline image. (The config and
 #    welcome page already come from the .deb, as conffiles, like the official one.)
 RUN mkdir -p /docker-entrypoint.d

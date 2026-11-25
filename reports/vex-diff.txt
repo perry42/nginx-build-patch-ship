@@ -1,0 +1,9 @@
+# Effect of vex.json on the fixed image (echo/nginx:1.25-patched)
+# Same session, same pinned scanners: Trivy 0.76.2, Grype v0.122.1.
+# Compare fixed-*.txt (no VEX) with vex-*.txt (--vex vex.json).
+
+Trivy: 370 rows without VEX, 369 with VEX. Removed: CVE-2026-27171 on zlib1g. Added: none.
+Grype: 348 rows without VEX, 347 with VEX. Removed: CVE-2026-27171 on zlib1g (moved to ignoredMatches). Added: none.
+
+vex.json also states CVE-2026-42945 and CVE-2026-9256 as fixed for nginx. Neither scanner lists those
+CVEs, with or without VEX, so those two statements remove no row.
