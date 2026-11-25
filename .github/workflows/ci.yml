@@ -1,0 +1,121 @@
+# Build once, then run the checks side by side on separate runners.
+# STATUS: written but not yet run on GitHub. I tested the same commands locally
+# (`make all`), not this workflow file.
+# The scans take about 12 minutes, so they only run on the weekly schedule or by hand.
+#
+#   build --+--> test   (parity suite, original vs ours)
+#           +--> verify (fix tests: real run passes, control run fails)
+#           +--> scans  (weekly or manual: Trivy, Grype, VEX, CVE diff)
+#
+# Each job has its own runner, so the test fixture's "remove leftover echo-test-*
+# containers" step cannot hit another job.
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  schedule:
+    - cron: "0 5 * * 1" # Mondays
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.event_name == 'workflow_dispatch' && github.run_id || github.ref }}
+  cancel-in-progress: true
+
+env:
+  PATCHED: echo/nginx:1.25-patched
+  ORIGINAL: nginx:1.25-bookworm
+  # Digest from docs/baseline-facts.txt. I pull by digest and tag it locally instead of
+  # using name@digest as ORIGINAL, because `docker image ls` (Makefile, verify.py) cannot
+  # match a digest reference and would lose the original image size.
+  ORIGINAL_DIGEST: sha256:a484819eb60211f5299034ac80f6a681b06f89e65866ce91f356ed7c72af059c
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build the .deb from source and the image
+        run: make image
+      - name: Save the image for the other jobs
+        run: docker save "$PATCHED" | gzip > image.tar.gz
+      - uses: actions/upload-artifact@v4
+        with:
+          name: image
+          path: image.tar.gz
+          retention-days: 1
+
+  test:
+    needs: build
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - uses: actions/download-artifact@v4
+        with:
+          name: image
+      - run: gunzip -c image.tar.gz | docker load
+      - name: Pull the baseline by digest and tag it
+        run: |
+          docker pull "nginx@$ORIGINAL_DIGEST"
+          docker tag "nginx@$ORIGINAL_DIGEST" "$ORIGINAL"
+      - run: make deps
+      - name: Parity tests (original vs ours)
+        run: make test
+
+  verify:
+    needs: build
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - uses: actions/download-artifact@v4
+        with:
+          name: image
+      - run: gunzip -c image.tar.gz | docker load
+      - name: Pull the baseline by digest and tag it
+        run: |
+          docker pull "nginx@$ORIGINAL_DIGEST"
+          docker tag "nginx@$ORIGINAL_DIGEST" "$ORIGINAL"
+      - run: make deps
+      - name: Fix tests (real run must pass, control run must fail)
+        run: make verify
+
+  scans:
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    needs: build
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - uses: actions/download-artifact@v4
+        with:
+          name: image
+      - run: gunzip -c image.tar.gz | docker load
+      - name: Pull the baseline by digest and tag it
+        run: |
+          docker pull "nginx@$ORIGINAL_DIGEST"
+          docker tag "nginx@$ORIGINAL_DIGEST" "$ORIGINAL"
+      - name: Scan both images, rescan with VEX, diff
+        run: make scan vex diff
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: scan-reports
+          path: |
+            scans/rescan/
+            reports/*.generated.txt
