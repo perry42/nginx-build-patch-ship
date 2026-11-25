@@ -21,7 +21,7 @@ I wrote this as I went, so the decisions come with the reasons I made them, incl
 
 ## Build and run
 
-You need Docker (BuildKit), GNU make and Python 3.10+. Nothing else.
+You need Docker (BuildKit), GNU make and Python 3.10+. Nothing else. The Makefile calls `python` by default; on a machine that only has `python3`, add `PY=python3` (for example `make PY=python3 deps test`), and if pip refuses to install system-wide (PEP 668), create a virtualenv first and pass its interpreter, for example `PY=.venv/bin/python`. The zlib tests compile a small C program inside a container, so they need network access to `snapshot.debian.org`.
 
 ```sh
 make image      # builds the .deb from source, then echo/nginx:1.25-patched
@@ -209,7 +209,10 @@ Same logic: they are separate packages in the official image, not part of the ng
 - **The `.deb` is not byte-reproducible.** I did not set `SOURCE_DATE_EPOCH`. Two builds give the same contents but different bytes.
 - **The build depends on snapshot.debian.org being up.** If it is down, the build fails; I did not mirror it.
 - **I verify the tarball by SHA-256 but not by its PGP signature.** The checksum is pinned in the repo, so an attacker would need to replace the file and the repo, but I did not check upstream's signature.
-- **Backports are verified by tests that I wrote.** A different regression in the same module could still exist.
+- **Backports are verified by tests that I wrote.** A different regression in the same module could still exist. The zlib patch in particular is my hand-port, not upstream's commit, and its only proof is my own proof-of-concept program.
+- **`apt-get source` does not verify the source package's `.dsc` signature** (there is no Debian keyring in the builder). Trust rests on apt's signed `Release` and `Sources` index for the pinned snapshot date. Like the nginx tarball signature, I did not close this gap.
+- **`vex.json` is a self-asserted, unsigned statement.** Anyone consuming it has to trust whoever wrote it. Signing it (and the image) is a next step.
+- **The runtime still has a full Debian userland** (shell, apt, dpkg). A distroless or much smaller runtime would shrink the attack surface further, but it would also stop being a drop-in replacement, so I left it as a proposal.
 
 ## Surprises, and what I would do differently
 
