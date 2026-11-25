@@ -1,8 +1,14 @@
-# Build the .deb and the image from source, then run the parity tests.
+# Build once, then run the checks side by side on separate runners.
 # STATUS: written but not yet run on GitHub. I tested the same commands locally
 # (`make all`), not this workflow file.
-# The scans (`make scan vex diff`) take about 12 minutes and are left out of the
-# per-push run; the weekly job below runs everything.
+# The scans take about 12 minutes, so they only run on the weekly schedule or by hand.
+#
+#   build --+--> test   (parity suite, original vs ours)
+#           +--> verify (fix tests: real run passes, control run fails)
+#           +--> scans  (weekly or manual: Trivy, Grype, VEX, CVE diff)
+#
+# Each job has its own runner, so the test fixture's "remove leftover echo-test-*
+# containers" step cannot hit another job.
 name: ci
 
 on:
@@ -10,41 +16,85 @@ on:
     branches: [main]
   pull_request:
   schedule:
-    - cron: "0 5 * * 1" # Mondays, full run with scans
+    - cron: "0 5 * * 1" # Mondays
   workflow_dispatch:
 
 permissions:
   contents: read
 
+env:
+  PATCHED: echo/nginx:1.25-patched
+  ORIGINAL: nginx:1.25-bookworm
+
 jobs:
-  build-and-test:
+  build:
     runs-on: ubuntu-24.04
-    timeout-minutes: 60
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build the .deb from source and the image
+        run: make image
+      - name: Save the image for the other jobs
+        run: docker save "$PATCHED" | gzip > image.tar.gz
+      - uses: actions/upload-artifact@v4
+        with:
+          name: image
+          path: image.tar.gz
+          retention-days: 1
+
+  test:
+    needs: build
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-      - name: Build the image (this builds the .deb from source first)
-        run: make image
-      - name: Install test requirements
-        run: make deps
+      - uses: actions/download-artifact@v4
+        with:
+          name: image
+      - run: gunzip -c image.tar.gz | docker load
+      - run: docker pull "$ORIGINAL"
+      - run: make deps
       - name: Parity tests (original vs ours)
         run: make test
-      - name: Verify the fixes (real run must pass, control run must fail)
-        run: make verify
 
-  full-with-scans:
-    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+  verify:
+    needs: build
     runs-on: ubuntu-24.04
-    timeout-minutes: 120
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-      - name: Everything, from scratch
-        run: make all BUILD_FLAGS=--no-cache
+      - uses: actions/download-artifact@v4
+        with:
+          name: image
+      - run: gunzip -c image.tar.gz | docker load
+      - run: docker pull "$ORIGINAL"
+      - run: make deps
+      - name: Fix tests (real run must pass, control run must fail)
+        run: make verify
+
+  scans:
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    needs: build
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - uses: actions/download-artifact@v4
+        with:
+          name: image
+      - run: gunzip -c image.tar.gz | docker load
+      - run: docker pull "$ORIGINAL"
+      - name: Scan both images, rescan with VEX, diff
+        run: make scan vex diff
       - uses: actions/upload-artifact@v4
         if: always()
         with:
