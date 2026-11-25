@@ -16,7 +16,7 @@ It does not prove drop-in parity (that is the full `make test`) or the scan resu
 make verify
 ```
 
-The last line reads `VERIFY: PASS (n/n checks)` or `VERIFY: FAIL (names of the failed checks)`. On my machine, with both images already built, it took 3 minutes 5 seconds. The zlib proof of concept waits 5 seconds on every original-image run and compiles a small C program, which is most of that time.
+The last line reads `VERIFY: PASS (n/n checks)` or `VERIFY: FAIL (names of the failed checks)`. On my machine, with both images already built, it took 3 minutes 5 seconds. The 5 second zlib hang runs in both passes, and the proof of concept is compiled in each pass. The nginx CVE-2026-9256 test is probabilistic (it looks for a crash), so a rare FAIL on the nginx CVE line means run it once more. The control run only proves that the tests detect the bugs on the original. It does not prove that nothing else differs between the two images. If a check fails, it prints the failing test names with their messages and the last lines of the pytest output.
 
 ## What is in here
 
