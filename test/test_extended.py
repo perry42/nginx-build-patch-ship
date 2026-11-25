@@ -33,6 +33,16 @@ def post(server, path, body):
     return requests.post(server.base + path, data=body, allow_redirects=False, timeout=30)
 
 
+def post_outcome(server, path, body):
+    """nginx may answer 413 and close before the client has sent the whole body, which
+    surfaces as a connection error. Return norm(response) or ("conn-error", type name)
+    so each side's behaviour is still compared (a difference still fails)."""
+    try:
+        return norm(post(server, path, body))
+    except requests.ConnectionError as e:
+        return ("conn-error", type(e.args[0] if e.args else e).__name__)
+
+
 def test_large_body_5mb_parity(misc_pair):
     body = b"A" * (5 * 1024 * 1024)
     a, b = (norm(post(s, "/upload", body)) for s in misc_pair)
@@ -42,9 +52,10 @@ def test_large_body_5mb_parity(misc_pair):
 
 def test_body_over_limit_is_413_on_both(misc_pair):
     body = b"A" * (9 * 1024 * 1024)  # server limit is 8m
-    a, b = (norm(post(s, "/upload", body)) for s in misc_pair)
+    a, b = (post_outcome(s, "/upload", body) for s in misc_pair)
     assert a == b, f"orig {a[:2]} patched {b[:2]}"
-    assert a[0] == 413
+    # 413 normally; early close by nginx (same error on both) is also its real behaviour
+    assert a[0] == 413 or a[0] == "conn-error", a
 
 
 @pytest.mark.parametrize("size,want", [(512, 200), (4096, 413)])
@@ -55,25 +66,30 @@ def test_per_location_limit(misc_pair, size, want):
 
 # ------------------------------------------------------- malformed raw requests
 def raw(server, payload, port=80):
-    """Send raw bytes; return (status_line, headers without Date)."""
+    """Send raw bytes; read until the server closes. Returns
+    (status_line, headers without Date, body, how) where how is "eof", "reset" or
+    "timeout" so a silent reset or hang is part of what gets compared."""
+    data, how = b"", "eof"
     with socket.create_connection(("127.0.0.1", server.ports[port]), timeout=5) as sk:
-        sk.sendall(payload)
-        data = b""
         try:
-            while CRLF + CRLF not in data:
+            sk.sendall(payload)
+            while True:
                 chunk = sk.recv(65536)
                 if not chunk:
                     break
                 data += chunk
-        except (ConnectionResetError, socket.timeout):
-            pass
-    lines = data.split(CRLF + CRLF, 1)[0].decode("latin-1").split("\r\n")
+        except (ConnectionResetError, BrokenPipeError):
+            how = "reset"
+        except socket.timeout:
+            how = "timeout"
+    head, _, body = data.partition(CRLF + CRLF)
+    lines = head.decode("latin-1").split("\r\n")
     hdrs = {}
     for ln in lines[1:]:
         k, _, v = ln.partition(":")
         if k.lower() != "date":
             hdrs[k.lower()] = v.strip()
-    return lines[0], hdrs
+    return lines[0], hdrs, body, how
 
 
 def req(first, *headers, body=b"", eol=CRLF):
@@ -108,7 +124,7 @@ def test_malformed_is_400(misc_pair, name):
     """(bad_method / header-without-colon / missing Host are accepted by nginx, 200 on both.)
     Guard against 'equal because both empty': these must be a real 400."""
     for s in misc_pair:
-        status, _ = raw(s, MALFORMED[name])
+        status = raw(s, MALFORMED[name])[0]
         assert " 400 " in status, f"{name} on {s.image}: {status!r}"
 
 

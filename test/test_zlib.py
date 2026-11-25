@@ -33,7 +33,6 @@ apt-get install -y -qq --no-install-recommends gcc libc6-dev zlib1g-dev >/dev/nu
 gcc -O1 -Wall -Werror=implicit-function-declaration -o /tmp/poc /tmp/poc.c -lz
 """
 IGNORED = {"date", "etag", "last-modified"}
-LIBZ = "/lib/x86_64-linux-gnu/libz.so.1"
 
 
 @pytest.fixture(scope="session")
@@ -78,7 +77,10 @@ def test_cve_2026_27171_poc(_need_patched, poc_binary, mode):
 
 # ------------------------------------------------------------ package identity
 def _libz_facts(image):
-    script = (f"dpkg-query -W -f='${{Version}}\n' zlib1g; md5sum {LIBZ} | cut -d' ' -f1")
+    # Resolve the real library path inside the image (works on amd64 and arm64).
+    script = ("dpkg-query -W -f='${Version}\\n' zlib1g; "
+              "md5sum \"$(readlink -f \"$(ldconfig -p | awk '/libz\\.so\\.1 /{print $NF; exit}')\")\" "
+              "| cut -d' ' -f1")
     ver, md5 = _docker("run", "--rm", "--entrypoint", "sh", image, "-c", script).stdout.split()
     return ver, md5
 

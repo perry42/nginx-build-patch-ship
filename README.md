@@ -153,7 +153,7 @@ The VEX file also says the two nginx CVEs are fixed, but neither scanner lists t
 
 The suite boots `nginx:1.25-bookworm` and our image as separate containers, sends identical requests and compares status line, all headers except `Date`, and the body. It exits non-zero on any mismatch.
 
-Covered (78 tests):
+Covered (79 tests):
 - default config responses (`/`, `/missing`, `/50x.html`) and identical entrypoint startup log lines
 - mounted `conf.d`, and `envsubst` templates
 - `rewrite` last/break/redirect/permanent, captures, malformed `%` escapes
@@ -164,12 +164,13 @@ Covered (78 tests):
 - `docker inspect` fields, file layout, modes, owners, and SHA-256 of every file under `/etc/nginx` and the html folder
 - log symlinks, user `nginx` (UID 101), graceful `docker stop`
 - the files the `nginx` package itself ships (`nginx-debug`, `/etc/default`, init scripts, logrotate, systemd units): mode, owner and checksum, the dpkg conffile list, the `dpkg -L` file list, and that `nginx-debug` runs and serves the same page
+- the installed package set: the only version differences are libssl3, openssl and nginx, we have no package the baseline lacks, and the 56 missing packages are exactly the documented list (so the extra security snapshot used for the bump cannot silently pull in anything else)
 - gzip and `gzip_static` responses, including the compressed bytes (zlib was replaced)
 - the zlib CVE-2026-27171 proof-of-concept (hangs on the original, returns on ours), and that the zlib1g version string is identical while the library file differs
 
 Not covered: HTTP/2, proxying, reload and signals beyond the SIGQUIT stop, runtime log content.
 
-The suite can fail on purpose. Run it with both sides set to the original image and exactly seven tests fail, all intended: the two nginx CVE tests, the zlib proof-of-concept (two cases), the zlib version/library check, and two documented-difference tests (environment variables and labels). I use that to check that the tests really detect a missing patch.
+The suite can fail on purpose. Run it with both sides set to the original image and exactly eight tests fail, all intended: the two nginx CVE tests, the zlib proof-of-concept (two cases), the zlib version/library check, the installed-package-set test, and two documented-difference tests (environment variables and labels). I use that to check that the tests really detect a missing patch.
 
 ## Intended differences
 
