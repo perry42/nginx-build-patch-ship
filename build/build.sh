@@ -143,4 +143,7 @@ EOF
 
 echo "==> build .deb"
 dpkg-deb --root-owner-group -b "$PKGROOT" "$OUT/nginx_${NGINX_VERSION}-${REVISION}_amd64.deb"
+
+# Second package: Debian's zlib1g rebuilt with the CVE-2026-27171 backport.
+WORK="$WORK" OUT="$OUT" sh "$HERE/build-zlib.sh"
 ls -l "$OUT"
