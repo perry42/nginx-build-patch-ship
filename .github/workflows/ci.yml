@@ -59,6 +59,11 @@ jobs:
         run: |
           make deb BUILD_FLAGS=--no-cache
           sha256sum dist/*.deb
+      - uses: actions/upload-artifact@v4
+        with:
+          name: debs
+          path: dist/*.deb
+          retention-days: 1
 
   test:
     needs: build
