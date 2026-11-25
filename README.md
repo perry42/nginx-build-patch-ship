@@ -77,7 +77,7 @@ Counting unit for scan numbers below: one row is one CVE on one package, so a CV
 
 | CVE | Severity | Technique | What it is | Evidence |
 |---|---|---|---|---|
-| CVE-2026-31789 | Critical (Trivy and Grype) | **Bump** (libssl3 and openssl 3.0.11-1~deb12u2 to 3.0.22-1~deb12u2) | OpenSSL | gone from libssl3 and openssl in both scanners: `reports/cve-diff.txt`, `reports/fixed-trivy.txt`, `reports/fixed-grype.txt` |
+| CVE-2026-31789 | Critical (Trivy and Grype) | **Bump** (libssl3 and openssl `3.0.11-1~deb12u2` to `3.0.22-1~deb12u2`) | OpenSSL | gone from libssl3 and openssl in both scanners: `reports/cve-diff.txt`, `reports/fixed-trivy.txt`, `reports/fixed-grype.txt` |
 | CVE-2025-15467 | High per Trivy, Critical per Grype | **Bump** (same) | OpenSSL CMS parsing; nginx never parses CMS, so this is cleared but not reachable through nginx | same files |
 | CVE-2024-6119 | High (Trivy and Grype; CVSS 7.5) | **Bump** (same) | X.509 name check, relevant when nginx verifies certificates. Trivy's fixed version for it is 3.0.14; we ship 3.0.22 | same files; https://nvd.nist.gov/vuln/detail/CVE-2024-6119 |
 | CVE-2026-42945 | Medium per nginx.org, High (8.1) per NVD | **Backport** onto nginx 1.25.5 | Rewrite module: wrong escaping of a capture and a possible buffer overrun | `build/patches/CVE-2026-42945.patch` (upstream commit [`2046b45aa0c6`](https://github.com/nginx/nginx/commit/2046b45aa0c6e712c216b9075886f3f26e9b4ca9)); test `test_cve_2026_42945_capture_unescaping_differs` |
