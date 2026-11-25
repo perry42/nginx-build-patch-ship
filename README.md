@@ -226,13 +226,15 @@ Everything below is a deliberate difference from the official image.
 
 ### Why curl is not in the image
 
-This was the decision I went back and forth on most, so here is the reasoning.
+The official image ships curl and mine does not. This is a deliberate difference, and these are my reasons.
 
-My first instinct was "the brief says drop-in, so match everything". Then I checked what curl is actually used for in the official image. nginx does not link libcurl (`ldd` shows nothing), and none of the entrypoint scripts call curl. In the official image it is a leftover from the Dockerfile's repository setup.
+**Why I left it out.** curl is not needed to run nginx, and every extra package is extra attack surface. nginx does not link libcurl (`ldd` shows nothing), and none of the entrypoint scripts call curl. In the official image it is a leftover from the Dockerfile's repository setup, not a feature. Leaving it out removes curl, libcurl and their dependency chain, so there is less code to patch and less to attack.
 
-Leaving it out removes 104 rows from each scanner. That is exactly why I distrust the decision: it makes my scan look better, which is a bad reason to do anything. So I decided on one condition: I would not count it as a fix, and I would write it down here instead of hoping nobody notices.
+**How to read the scan numbers.** Leaving curl out takes 104 rows off each scanner. I do not count that as a fix, and the tables above do not either: the image is smaller, not repaired. I give the number so nobody has to wonder whether I used it to make the scan look better.
 
-The cost is real. Anyone who runs `curl` inside the container, for example in a `HEALTHCHECK`, gets "command not found". Their fix is `apt-get install curl` in a derived image, and then they inherit Debian's curl CVEs, several of which Debian has not fixed in bookworm. If I had more time I would publish an optional variant with curl, pinned to the same snapshot.
+**What it costs.** This breaks some users, and I want that to be clear. Anyone who runs `curl` inside the container, for example in a `HEALTHCHECK`, gets "command not found". Their fix is `apt-get install curl` in a derived image, and then they inherit Debian's curl CVEs, several of which Debian has not fixed in bookworm. A reader who wants a strict drop-in could reasonably disagree with this choice, which is why it is listed under intended differences.
+
+**What I would do with more time.** Publish an optional variant with curl, pinned to the same snapshot, for people who need it.
 
 ### Why the modules are not in the image
 
