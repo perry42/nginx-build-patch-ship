@@ -142,6 +142,15 @@ Description: nginx ${NGINX_VERSION} built from upstream source with CVE backport
 EOF
 
 echo "==> build .deb"
+# Reproducible .deb: two builds give the same file contents, but the file times
+# (build time) and the archive time differ. Set them to a fixed date, the same
+# one build-zlib.sh uses, so two builds give the same sha256.
+export SOURCE_DATE_EPOCH=1795564800   # 2026-11-25 00:00:00 UTC
+# dpkg-deb stamps the archive with SOURCE_DATE_EPOCH. Set every file's time to the
+# same date ourselves: files copied from the repo carry the time of someone's
+# checkout, which is older than the date and differs between machines, so only
+# lowering newer times is not enough.
+find "$PKGROOT" -exec touch -h -d "@$SOURCE_DATE_EPOCH" {} +
 dpkg-deb --root-owner-group -b "$PKGROOT" "$OUT/nginx_${NGINX_VERSION}-${REVISION}_amd64.deb"
 
 # Second package: Debian's zlib1g rebuilt with the CVE-2026-27171 backport.

@@ -50,6 +50,22 @@ jobs:
           path: image.tar.gz
           retention-days: 1
 
+  reproducible:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build both .deb files from scratch and compare their sha256 with build/deb.sha256
+        run: |
+          make deb BUILD_FLAGS=--no-cache
+          sha256sum dist/*.deb
+          sha256sum -c build/deb.sha256
+      - uses: actions/upload-artifact@v4
+        with:
+          name: debs
+          path: dist/*.deb
+          retention-days: 1
+
   test:
     needs: build
     runs-on: ubuntu-24.04

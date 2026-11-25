@@ -38,6 +38,7 @@ GRYPE = docker run --rm -v $(CURDIR):/work -v grype-db:/root/.cache/grype -e GRY
 
 help:
 	@echo "deb     build the nginx .deb from source into dist/ (build/Dockerfile)"
+	@echo "repro   build the .deb files from scratch and check their sha256 against build/deb.sha256"
 	@echo "image   build $(PATCHED) from the Containerfile (also builds the .deb)"
 	@echo "deps    install the test requirements (pip)"
 	@echo "test    parity tests: $(ORIGINAL) vs $(PATCHED)"
@@ -54,6 +55,14 @@ all: image deps test scan vex diff sizes
 deb:
 	docker build $(BUILD_FLAGS) -f build/Dockerfile --output type=local,dest=dist build
 	@ls -l dist
+
+# Build both .deb files from scratch and compare their sha256 with build/deb.sha256.
+# A change to a patch or to the build flags changes the nginx binary on purpose;
+# then update build/deb.sha256 from the new output.
+repro:
+	rm -rf dist
+	docker build --no-cache -f build/Dockerfile --output type=local,dest=dist build
+	cd . && sha256sum -c build/deb.sha256
 
 image:
 	docker build $(BUILD_FLAGS) -f Containerfile -t $(PATCHED) .
