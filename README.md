@@ -41,7 +41,7 @@ You need Docker (BuildKit), GNU make and Python 3.10+. Nothing else. The Makefil
 make image      # builds the .deb from source, then echo/nginx:1.25-patched
 make deps       # pip install -r test/requirements.txt
 make test       # boots nginx:1.25-bookworm and our image, compares them, exits non-zero on any mismatch
-make scan       # Trivy + Grype on both images, same session (about 12 minutes)
+make scan       # Trivy + Grype on both images, same session (about 12 minutes). Updates the scanner databases once, then every scan in the run uses that copy; `make scan DB=fresh` lets every scan update its own
 make vex        # rescan our image with vex.json applied; the zlib row disappears
 make diff       # CVE diff of the scans, written to reports/cve-diff.generated.txt (git-ignored; reports/cve-diff.txt is the committed copy with notes)
 make sizes      # image sizes
@@ -58,7 +58,7 @@ Run it: `docker run --rm -p 8080:80 echo/nginx:1.25-patched`.
 | `nginx:1.25-bookworm` | 276 MB |
 | `echo/nginx:1.25-patched` | 179 MB |
 
-This is not an achievement. Most of the 97 MB is components I did not include (see "Intended differences"), and the brief is clear that removal does not count as a fix. I list it because it was asked for, and because it is a side effect I want to be honest about.
+These are the sizes `docker image ls` shows on my machine (Docker Desktop on Windows). Docker on Linux counts image size differently: on a GitHub Actions runner the same two images show 188 MB and 116 MB. The reduction is about 38% in both. This is not an achievement. Most of the 97 MB is components I did not include (see "Intended differences"), and the brief is clear that removal does not count as a fix. I list it because it was asked for, and because it is a side effect I want to be honest about.
 
 ## The base: why it is pinned
 
@@ -89,7 +89,7 @@ The `.deb` declares `libssl3 (>= 3.0.22-1~deb12u2)`, so the runtime cannot insta
 
 Proof that it is the bump and not scanner noise: the installed libssl3 version is newer than the scanner's fixed version for the CVEs that disappear, so it is a real version-against-advisory comparison.
 
-Result, Trivy (CVE, package) rows: 960 down to 370. Only 96 of the 592 rows that disappeared come from the bump (one of the two Trivy Criticals among them: CVE-2026-31789; Grype also rates CVE-2025-15467 Critical). See "Scan results" for the rest.
+Result, Trivy (CVE, package) rows: 955 down to 365. Only 96 of the 592 rows that disappeared come from the bump (one of the two Trivy Criticals among them: CVE-2026-31789; Grype also rates CVE-2025-15467 Critical). See "Scan results" for the rest.
 
 ### The backports
 
@@ -133,12 +133,14 @@ One honest limit on the zlib backport: nginx only uses zlib's `deflate` and `inf
 
 ## Scan results
 
-Trivy 0.76.2 and Grype v0.122.1, both images scanned back to back, so a database update cannot look like a difference between them.
+Trivy 0.76.2 and Grype v0.122.1, both images scanned back to back. The vulnerability databases are updated once at the start and then frozen for the whole run (`make scan`, recorded in `scans/rescan/db-versions.txt`). The numbers below are from the run on 2026-11-25 with Trivy's database updated 2026-11-25 01:10 UTC and Grype's built 2026-11-25 06:22 UTC. **Row counts move whenever a database changes**: my first baseline scan, taken earlier with older databases, had 960 Trivy and 892 Grype rows (`baseline-*.txt`), and a GitHub Actions run on the same day gave exactly today's numbers. The shape does not move: the bump removes the same 96 rows and VEX removes only the zlib row.
+
+I learned this the hard way. An earlier run of mine showed the VEX rescan removing nine Trivy rows instead of one, because Trivy updated its database between two scans. I also found that Grype's database was never stored in the cache volume (its cache directory is `/.cache/grype` in the container), so every Grype run downloaded its own copy. The Makefile now points Grype's cache at the volume.
 
 | | Trivy rows | Grype rows | Trivy unique CVEs | Grype unique CVEs |
 |---|---|---|---|---|
-| Baseline | 960 | 892 | 604 | 538 |
-| Ours | 370 | 348 | 211 | 191 |
+| Baseline | 955 | 889 | 602 | 537 |
+| Ours | 365 | 345 | 209 | 190 |
 
 What the 592 removed Trivy rows are made of:
 - **96** are the libssl3/openssl bump. This is the fix.
@@ -156,8 +158,8 @@ Neither scanner ever lists CVE-2026-42945 or CVE-2026-9256, before or after. The
 
 | | rows without VEX | rows with VEX | what changed |
 |---|---|---|---|
-| Trivy 0.76.2 | 370 | 369 | CVE-2026-27171 on zlib1g removed |
-| Grype v0.122.1 | 348 | 347 | CVE-2026-27171 on zlib1g removed (Grype moves it to its ignored list) |
+| Trivy 0.76.2 | 365 | 364 | CVE-2026-27171 on zlib1g removed |
+| Grype v0.122.1 | 345 | 344 | CVE-2026-27171 on zlib1g removed (Grype moves it to its ignored list) |
 
 Nothing else changed in either scanner. Evidence: `reports/vex-diff.txt`, `reports/vex-trivy.txt` and `reports/vex-grype.txt`, compared with `reports/fixed-trivy.txt` and `reports/fixed-grype.txt`.
 
@@ -217,9 +219,9 @@ Same logic: they are separate packages in the official image, not part of the ng
 
 ## Residual risk: what remains and why
 
-- **Eight libssl3 CVEs have no fixed Debian version** (CVE-2025-27587, CVE-2026-107493, -107494, -107496, -121481, -121482, -84786, -95690). Grype rates five of them High, Trivy rates one (CVE-2026-107494) High. The two scanners disagree, so I would not rely on either rating alone. Next step: check upstream OpenSSL for fixes and backport the ones that apply to what nginx uses.
+- **Six libssl3 CVEs have no fixed Debian version** (CVE-2025-27587, CVE-2026-107493, -107496, -121481, -84786, -95690). Grype rates three of them High (-107493, -107496, -84786), Trivy rates none above Medium. The two scanners disagree, so I would not rely on either rating alone. Two more that an earlier run listed (-107494 and -121482) are not reported by today's databases, and I did not look into why. Next step: check upstream OpenSSL for fixes and backport the ones that apply to what nginx uses.
 - **nginx 1.25.5 is end-of-life, and 36 more upstream advisories affect it.** `docs/triage-nginx-upstream.csv` lists 38 nginx.org advisories whose affected range includes 1.25.5. I fixed two. The other 36 stay, and each is marked not reachable in the default config. The ones I would look at first: CVE-2026-123007 (HTTP/2 flow control, major, only when HTTP/2 is enabled), CVE-2026-118899 (TLS 1.3 request body loop, major), CVE-2026-42533 (`map` with regex captures, major), CVE-2026-15176 (`alias` with `rewrite`, medium). Backporting each one is the wrong long-term answer; the real fix is rebasing onto a supported 1.30.x, which I did not do because the brief asks to patch the version we ship.
-- **Everything else the scanners still report** (370 rows for Trivy) is in packages that are in both images and that Debian has not fixed, or that nginx does not use. I did not try to fix these, and the next step would be to triage them the same way.
+- **Everything else the scanners still report** (365 rows for Trivy) is in packages that are in both images and that Debian has not fixed, or that nginx does not use. I did not try to fix these, and the next step would be to triage them the same way.
 - **The omitted components** (above) are a risk reduction by removal, not a fix.
 - **The `.deb` is not byte-reproducible.** I did not set `SOURCE_DATE_EPOCH`. Two builds give the same contents but different bytes.
 - **The build depends on snapshot.debian.org being up.** If it is down, the build fails; I did not mirror it.
@@ -238,7 +240,8 @@ Same logic: they are separate packages in the official image, not part of the ng
 - **Config files arrived executable.** They came through a Windows checkout. Fixed with `chmod 0644` in `build.sh`.
 - **My first `.deb` was unstripped** (8.4 MB binary) and shipped a `/var/run` directory.
 - **Severity depends on who you ask.** For CVE-2026-42945 nginx.org says medium and NVD says 8.1 High.
-- **One transient failure I did not explain.** A back-to-back run with both sides set to the original once had 27 errors that never reproduced. I could not find the cause. The full suite passed after that, but if you see random errors on a first run, re-run and tell me.
+- **A test flake that turned out to be my harness.** A back-to-back run once had 27 errors at the same time. 27 is the number of tests that share one fixture. The fixture asked the OS for a free port, released it, and only later ran `docker start`, so another container or the previous run could take the port in between. It was not nginx and not the image. The fixture now uses a different port for every container in a session, retries startup up to three times with fresh ports and a fresh name, and removes leftover test containers first (so never run two suites at once). I explained it from the code and the error count; I did not reproduce the race on purpose.
+- **Docker once left my zlib fix out of the image, and CI caught it.** On GitHub Actions one run in two of the same commit failed three zlib tests: the image had the original `libz`. The build log was fine (patch applied, package installed). I downloaded the image artifacts of the good and the bad run and compared their layers. The good image had a second `libz.so.1.2.13` with my patched hash. In the bad one the zlib layer had 20 files instead of 29 to 34, and the library and `md5sums` were missing. My rebuilt library has the same size and, because Debian clamps file times to the changelog date, the same time as the original. Docker's own layer diff code compares metadata (it never reads content), so a changed file that looks the same can be skipped. That matches what I saw, but I did not confirm which code path the runner used, so I call it strongly supported, not proven. The fix is a fixed, later `SOURCE_DATE_EPOCH` in `build/build-zlib.sh`, so the rebuilt files never have the baseline's time. Before the fix 2 of 6 CI runs failed; after it 0 of 9. My tests caught it; the build alone did not. It only showed up on a second Docker setup, which is the reason for the CI workflow.
 - **What I would do differently:** write the tests as I build, not at the end (I changed to this halfway through, after noticing I had scheduled them last), and pin every apt version from the first build instead of after the first drift.
 
 ## AI tools used
