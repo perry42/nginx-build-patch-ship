@@ -276,7 +276,6 @@ I also used Gemini in Antigravity as a study and review companion; it did not to
 Where it helped:
 - test-agent found the reliable crash trigger for CVE-2026-9256 and the missing `maintainer` label.
 - security-reviewer verified that the patches are byte-identical to upstream, and recomputed my scan numbers from the raw JSON.
-- security-reviewer corrected a belief of mine: I thought Grype showed the same maintainer-label effect as Trivy. It checked, and it does not.
 - Having the same assistant explain each step as it built made me understand the pieces: `dpkg`, conffiles, the snapshot repositories, and how scanners match.
 
 Where it hurt:
