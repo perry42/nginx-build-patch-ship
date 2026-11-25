@@ -106,8 +106,12 @@ def main():
 
     print("== 1. image size")
     so, sp = image_size(original), image_size(patched)
+    # The README quotes the SIZE column of `docker image ls`; print that too, so the
+    # numbers a reviewer sees match. The comparison itself uses the exact byte counts.
+    shown = [docker("image", "ls", "--format", "{{.Size}}", i).stdout.strip() or "?" for i in (original, patched)]
     check("size", sp <= so,
-          f"original {so / 1e6:.0f} MB, ours {sp / 1e6:.0f} MB, difference {(so - sp) / 1e6:+.0f} MB")
+          f"`docker image ls` says original {shown[0]}, ours {shown[1]}; "
+          f"exact bytes: original {so / 1e6:.0f} MB, ours {sp / 1e6:.0f} MB")
 
     with tempfile.TemporaryDirectory(prefix="echo-verify-") as tmp:
         print("== 2/3. fix tests: REAL run (original vs ours), then CONTROL (original vs original)")
